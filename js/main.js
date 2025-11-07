@@ -2,6 +2,8 @@ import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm';
 import { AudioManager, AudioManagerEvents } from './audio/AudioManager.js';
 import { FeatureExtractor, FEATURE_KEYS } from './audio/FeatureExtractor.js';
 import { Renderer } from './render/Renderer.js';
+import { MLPModel } from './ml/MLPModel.js';
+import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -16,52 +18,88 @@ const BUNDLED_TRACKS = [
   { id: 'track-10', title: 'Recursive Dreams', url: './assets/audio/10 - Recursive Dreams.mp3' },
 ];
 
-const appRoot = document.getElementById('app');
-const fileInput = document.getElementById('file-input');
-if (!appRoot || !fileInput) {
-  throw new Error('Required root elements (#app, #file-input) are missing from the DOM.');
-}
-
-const renderer = new Renderer(appRoot);
-renderer.init();
-
-const audioManager = new AudioManager({
-  tracks: BUNDLED_TRACKS,
-  fileInput,
-  dropTarget: document.body,
-});
-audioManager.init();
-
-const featureExtractor = new FeatureExtractor(audioManager.getAnalyser());
-featureExtractor.init();
-
-const gui = new GUI();
-gui.title('Emergent Properties');
-createFeatureGui(gui, featureExtractor);
-
-const dropOverlay = createDropOverlay();
-document.body.appendChild(dropOverlay);
-
-const transport = createTransportControls(audioManager);
-document.body.appendChild(transport);
-
-const gate = createAudioGate(audioManager);
-document.body.appendChild(gate.element);
-
-audioManager.on(AudioManagerEvents.STATE, (state) => {
-  gate.setVisible(!state.unlocked);
+bootstrap().catch((error) => {
+  console.error('[main] Failed to bootstrap application', error);
 });
 
-let last = performance.now();
-function loop(timestamp) {
-  const delta = (timestamp - last) * 0.001;
-  last = timestamp;
-  renderer.update(delta);
-  featureExtractor.sample(delta);
+async function bootstrap() {
+  const appRoot = document.getElementById('app');
+  const fileInput = document.getElementById('file-input');
+  if (!appRoot || !fileInput) {
+    throw new Error('Required root elements (#app, #file-input) are missing from the DOM.');
+  }
+
+  const renderer = new Renderer(appRoot);
+  renderer.init();
+  const particleField = renderer.getParticleField();
+
+  const audioManager = new AudioManager({
+    tracks: BUNDLED_TRACKS,
+    fileInput,
+    dropTarget: document.body,
+  });
+  audioManager.init();
+
+  const featureExtractor = new FeatureExtractor(audioManager.getAnalyser());
+  featureExtractor.init();
+
+  const mlpModel = new MLPModel({
+    inputSize: 17,
+    outputSize: 9,
+    hiddenLayers: [32],
+    backend: 'auto',
+  });
+  await mlpModel.init();
+
+  const mlpController = new MLPOrchestrator({
+    model: mlpModel,
+    particleField,
+    featureExtractor,
+    options: {
+      rateHz: 24,
+      blend: 0.85,
+    },
+  });
+  await mlpController.init();
+
+  const gui = new GUI();
+  gui.title('Emergent Properties');
+  const fpsStats = { fps: 0 };
+  createFeatureGui(gui, featureExtractor, fpsStats);
+  createMlpGui(gui, mlpModel, mlpController);
+
+  const dropOverlay = createDropOverlay();
+  document.body.appendChild(dropOverlay);
+
+  const transport = createTransportControls(audioManager);
+  document.body.appendChild(transport);
+
+  const gate = createAudioGate(audioManager);
+  document.body.appendChild(gate.element);
+
+  audioManager.on(AudioManagerEvents.STATE, (state) => {
+    gate.setVisible(!state.unlocked);
+  });
+
+  let last = performance.now();
+  function loop(timestamp) {
+    const delta = (timestamp - last) * 0.001;
+    last = timestamp;
+    if (delta > 0) {
+      const instant = 1 / delta;
+      fpsStats.fps = Number.isFinite(fpsStats.fps)
+        ? fpsStats.fps * 0.9 + instant * 0.1
+        : instant;
+      fpsStats.fps = Math.round(fpsStats.fps);
+    }
+    featureExtractor.sample(delta);
+    mlpController.update(delta);
+    renderer.update(delta);
+    requestAnimationFrame(loop);
+  }
+
   requestAnimationFrame(loop);
 }
-
-requestAnimationFrame(loop);
 
 function createAudioGate(manager) {
   const gate = document.createElement('div');
@@ -197,12 +235,12 @@ function createTransportControls(manager) {
 function createDropOverlay() {
   const overlay = document.createElement('div');
   overlay.className = 'audio-drop-overlay';
-  overlay.innerHTML = '<p>Drop audio files to play them instantly</p>';
   overlay.setAttribute('aria-hidden', 'true');
+  overlay.innerHTML = '<p>Drop audio files to play them instantly</p>';
   return overlay;
 }
 
-function createFeatureGui(guiInstance, extractor) {
+function createFeatureGui(guiInstance, extractor, liveStats) {
   const folder = guiInstance.addFolder('Audio Features');
   const settings = {
     sampleRate: extractor.options.sampleRate,
@@ -249,7 +287,180 @@ function createFeatureGui(guiInstance, extractor) {
     controller.disable?.();
   });
 
+  if (liveStats && Object.prototype.hasOwnProperty.call(liveStats, 'fps')) {
+    const fpsController = liveFolder.add(liveStats, 'fps').name('FPS').listen();
+    fpsController.disable?.();
+  }
+
   folder.open();
   liveFolder.open();
+  return folder;
+}
+
+function createMlpGui(guiInstance, model, orchestrator) {
+  const folder = guiInstance.addFolder('MLP Model');
+  const config = model.getConfig();
+  const outputs = orchestrator.getOutputConfig();
+  const state = {
+    backend: model.getBackend(),
+    activation: config.activation,
+    layers: config.hiddenLayers.length,
+    hiddenUnits: config.hiddenLayers[0] ?? 32,
+    rateHz: orchestrator.getRate(),
+    blend: orchestrator.getBlend(),
+    deltaPosX: outputs.deltaPos.x,
+    deltaPosY: outputs.deltaPos.y,
+    deltaPosZ: outputs.deltaPos.z,
+    sizeMin: outputs.size.min,
+    sizeMax: outputs.size.max,
+    colorMin: outputs.color.min,
+    colorMax: outputs.color.max,
+    flickerRateMin: outputs.flickerRate.min,
+    flickerRateMax: outputs.flickerRate.max,
+    flickerDepthMin: outputs.flickerDepth.min,
+    flickerDepthMax: outputs.flickerDepth.max,
+  };
+
+  const applyModelUpdate = async () => {
+    const layers = new Array(state.layers).fill(state.hiddenUnits);
+    try {
+      await model.rebuild({
+        hiddenLayers: layers,
+        activation: state.activation,
+      });
+      await orchestrator.syncModelDimensions();
+    } catch (error) {
+      console.error('[MLP GUI] Failed to rebuild model', error);
+    }
+  };
+
+  folder
+    .add(state, 'backend', ['auto', 'webgl', 'wasm', 'cpu'])
+    .name('Backend')
+    .onChange(async (value) => {
+      try {
+        await model.setBackend(value);
+      } catch (error) {
+        console.error('[MLP GUI] Failed to set backend', error);
+      }
+    });
+
+  folder
+    .add(state, 'activation', ['tanh', 'relu', 'elu'])
+    .name('Activation')
+    .onChange((value) => {
+      state.activation = value;
+      applyModelUpdate();
+    });
+
+  folder
+    .add(state, 'layers', 1, 3, 1)
+    .name('Hidden layers')
+    .onChange((value) => {
+      state.layers = value;
+      applyModelUpdate();
+    });
+
+  folder
+    .add(state, 'hiddenUnits', 8, 96, 4)
+    .name('Hidden units')
+    .onChange((value) => {
+      state.hiddenUnits = value;
+      applyModelUpdate();
+    });
+
+  folder
+    .add(state, 'rateHz', 5, 90, 1)
+    .name('Inference rate (Hz)')
+    .onChange((value) => orchestrator.setRate(value));
+
+  folder
+    .add(state, 'blend', 0, 1, 0.05)
+    .name('Model blend')
+    .onChange((value) => orchestrator.setBlend(value));
+
+  const outputFolder = folder.addFolder('Output clamps');
+
+  outputFolder
+    .add(state, 'deltaPosX', 0.1, 2, 0.05)
+    .name('ΔX range')
+    .onChange((value) => orchestrator.updateOutput('deltaPos', { x: value }));
+
+  outputFolder
+    .add(state, 'deltaPosY', 0.1, 2, 0.05)
+    .name('ΔY range')
+    .onChange((value) => orchestrator.updateOutput('deltaPos', { y: value }));
+
+  outputFolder
+    .add(state, 'deltaPosZ', 0.1, 2, 0.05)
+    .name('ΔZ range')
+    .onChange((value) => orchestrator.updateOutput('deltaPos', { z: value }));
+
+  outputFolder
+    .add(state, 'sizeMin', -5, 0, 0.1)
+    .name('Size min')
+    .onChange((value) => {
+      state.sizeMin = Math.min(value, state.sizeMax - 0.1);
+      orchestrator.updateOutput('size', { min: state.sizeMin });
+    });
+
+  outputFolder
+    .add(state, 'sizeMax', 0, 5, 0.1)
+    .name('Size max')
+    .onChange((value) => {
+      state.sizeMax = Math.max(value, state.sizeMin + 0.1);
+      orchestrator.updateOutput('size', { max: state.sizeMax });
+    });
+
+  outputFolder
+    .add(state, 'colorMin', -1, 0, 0.01)
+    .name('Color min')
+    .onChange((value) => {
+      state.colorMin = Math.min(value, state.colorMax - 0.01);
+      orchestrator.updateOutput('color', { min: state.colorMin });
+    });
+
+  outputFolder
+    .add(state, 'colorMax', 0, 1, 0.01)
+    .name('Color max')
+    .onChange((value) => {
+      state.colorMax = Math.max(value, state.colorMin + 0.01);
+      orchestrator.updateOutput('color', { max: state.colorMax });
+    });
+
+  outputFolder
+    .add(state, 'flickerRateMin', 0, 5, 0.05)
+    .name('Flicker rate min')
+    .onChange((value) => {
+      state.flickerRateMin = Math.min(value, state.flickerRateMax - 0.05);
+      orchestrator.updateOutput('flickerRate', { min: state.flickerRateMin });
+    });
+
+  outputFolder
+    .add(state, 'flickerRateMax', 0.1, 8, 0.05)
+    .name('Flicker rate max')
+    .onChange((value) => {
+      state.flickerRateMax = Math.max(value, state.flickerRateMin + 0.05);
+      orchestrator.updateOutput('flickerRate', { max: state.flickerRateMax });
+    });
+
+  outputFolder
+    .add(state, 'flickerDepthMin', 0, 1, 0.01)
+    .name('Flicker depth min')
+    .onChange((value) => {
+      state.flickerDepthMin = Math.min(value, state.flickerDepthMax - 0.01);
+      orchestrator.updateOutput('flickerDepth', { min: state.flickerDepthMin });
+    });
+
+  outputFolder
+    .add(state, 'flickerDepthMax', 0, 1, 0.01)
+    .name('Flicker depth max')
+    .onChange((value) => {
+      state.flickerDepthMax = Math.max(value, state.flickerDepthMin + 0.01);
+      orchestrator.updateOutput('flickerDepth', { max: state.flickerDepthMax });
+    });
+
+  folder.open();
+  outputFolder.open();
   return folder;
 }

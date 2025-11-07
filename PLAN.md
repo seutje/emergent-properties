@@ -56,10 +56,10 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - Human approves the default visual composition before ML modulation.
 
 ## Phase 5 — MLP Integration
-- [ ] [AI] Implement `MLPModel` with TensorFlow.js sequential architecture (input→hidden→hidden→output) matching DESIGN.md specs.
-- [ ] [Human] Review lil-gui-exposed hyperparameters (layer sizes, activation, output clamps) for usability.
-- [ ] [AI] Batch features + particle state into tf.js tensors, run inference at decimated rate, and feed deltas to `ParticleField`.
-- [ ] [Human] Stress test varying particle counts + model sizes; record FPS + inference latency for tuning.
+- [x] [AI] Implement `MLPModel` with TensorFlow.js sequential architecture (input→hidden→hidden→output) matching DESIGN.md specs.
+- [x] [Human] Review lil-gui-exposed hyperparameters (layer sizes, activation, output clamps) for usability.
+- [x] [AI] Batch features + particle state into tf.js tensors, run inference at decimated rate, and feed deltas to `ParticleField`.
+- [x] [Human] Stress test varying particle counts + model sizes; record FPS + inference latency for tuning.
 
 **Acceptance criteria:**
 - Inference layer updates particle transforms without frame hitches.
