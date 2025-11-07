@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "description": "3D audio visualizer prototype",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "http-server . -p 8000 -a localhost",
-    "test": "jest"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

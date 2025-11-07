@@ -20,3 +20,123 @@ body {
   height: 100vh;
   overflow: hidden;
 }
+
+.audio-transport {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  backdrop-filter: blur(10px);
+  border-radius: 999px;
+  background: rgba(8, 12, 20, 0.75);
+  border: 1px solid rgba(125, 225, 255, 0.2);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  color: #f7fbff;
+  font-size: 0.9rem;
+  z-index: 10;
+}
+
+.audio-btn,
+.audio-select {
+  border: 1px solid rgba(125, 225, 255, 0.35);
+  background: rgba(12, 25, 38, 0.95);
+  color: inherit;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.audio-btn:hover,
+.audio-select:hover,
+.audio-btn:focus-visible,
+.audio-select:focus-visible {
+  background: rgba(125, 225, 255, 0.2);
+  border-color: rgba(125, 225, 255, 0.8);
+}
+
+.audio-btn:disabled,
+.audio-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.audio-select option {
+  background-color: #07111c;
+  color: #eaf6ff;
+}
+
+.audio-status {
+  min-width: 10rem;
+  text-align: left;
+  font-size: 0.85rem;
+  color: rgba(247, 251, 255, 0.9);
+}
+
+.audio-gate {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(5, 7, 10, 0.78);
+  backdrop-filter: blur(6px);
+  color: #f7fbff;
+  text-align: center;
+  padding: 2rem;
+  z-index: 20;
+}
+
+.audio-gate p {
+  margin-bottom: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.audio-gate__button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #5ddcff, #3c67e3 70%);
+  color: #050505;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 35px rgba(60, 103, 227, 0.35);
+}
+
+.audio-gate.is-loading .audio-gate__button {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.audio-drop-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(18, 22, 30, 0.65);
+  border: 2px dashed rgba(125, 225, 255, 0.5);
+  border-radius: 1rem;
+  margin: 1.25rem;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.98);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 15;
+  color: rgba(247, 251, 255, 0.9);
+  text-align: center;
+  font-size: 1.1rem;
+}
+
+.audio-drop-overlay p {
+  margin: 0;
+}
+
+body.audio-drop-active .audio-drop-overlay {
+  opacity: 1;
+  transform: scale(1);
+}

@@ -25,10 +25,10 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - Code follows ES module structure with one `main.js` entry point.
 
 ## Phase 2 — Audio Pipeline
-- [ ] [AI] Build `AudioManager` to load bundled MP3s, manage play/pause, and expose analyser data.
-- [ ] [Human] Drop in test MP3s, confirm playback works, and approve UX for track switching (manual QA).
-- [ ] [AI] Implement drag & drop + file picker for user uploads with gating for autoplay policies.
-- [ ] [Human] Verify uploads from local disk play and stop cleanly; log any browser-specific blockers.
+- [x] [AI] Build `AudioManager` to load bundled MP3s, manage play/pause, and expose analyser data.
+- [x] [Human] Drop in test MP3s, confirm playback works, and approve UX for track switching (manual QA).
+- [x] [AI] Implement drag & drop + file picker for user uploads with gating for autoplay policies.
+- [x] [Human] Verify uploads from local disk play and stop cleanly; log any browser-specific blockers.
 
 **Acceptance criteria:**
 - Bundled tracks and user uploads both reach the analyser node without runtime errors.
