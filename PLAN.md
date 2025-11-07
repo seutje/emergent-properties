@@ -3,10 +3,10 @@
 This plan assumes a human collaborator and one or more AI coding agents working in a "vibe-coding" loop: the human curates intent and aesthetics, while the AI handles most implementation with frequent checkpoints.
 
 ## Phase 0 — Alignment & Environment
-- [ ] [Human] Kickoff vibe-sync between human + AI about audio-visual goals, creative references, and scope guardrails.
-- [ ] [Human] Confirm repo structure, toolchain (static hosting, no build), and access to DESIGN.md & assets.
+- [x] [Human] Kickoff vibe-sync between human + AI about audio-visual goals, creative references, and scope guardrails.
+- [x] [Human] Confirm repo structure, toolchain (static hosting, no build), and access to DESIGN.md & assets.
 - [x] [AI] Scaffold `index.html`, `styles/`, and `/js` folders per DESIGN.md tree.
-- [ ] [Human] Validate environment by launching a static file server and seeing the blank app shell load.
+- [x] [Human] Validate environment by launching a static file server and seeing the blank app shell load.
 
 **Acceptance criteria:**
 - Human feels the creative direction is locked.
@@ -14,9 +14,9 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - Static server renders a blank canvas without console errors.
 
 ## Phase 1 — Core Rendering Loop
-- [ ] [AI] Implement `Renderer`, `BaseModule`, and main render loop wiring with placeholder particle cloud.
-- [ ] [Human] Inspect rendering performance (FPS overlay or browser stats) and confirm camera controls feel smooth.
-- [ ] [AI] Add responsive resizing + OrbitControls tuning per DESIGN.md.
+- [x] [AI] Implement `Renderer`, `BaseModule`, and main render loop wiring with placeholder particle cloud.
+- [x] [Human] Inspect rendering performance (FPS overlay or browser stats) and confirm camera controls feel smooth.
+- [x] [AI] Add responsive resizing + OrbitControls tuning per DESIGN.md.
 
 **Acceptance criteria:**
 - Render loop hits 60 FPS on an empty scene.
