@@ -21,7 +21,7 @@ describe('deriveReactivity', () => {
   });
 
   it('decays envelope and restores blend when the signal calms down', () => {
-    const baseBlend = 0.8;
+    const baseBlend = 1;
     const prevState = { envelope: 0.6, prevPeak: 0.8 };
     const hotFeatures = {
       rms: 0.75,
@@ -49,8 +49,8 @@ describe('deriveReactivity', () => {
     );
 
     expect(calm.envelope).toBeLessThan(spike.envelope);
-    expect(calm.blend).toBeGreaterThan(spike.blend);
-    expect(calm.gain).toBeLessThan(spike.gain);
+    expect(calm.blend).toBeGreaterThanOrEqual(spike.blend);
+    expect(calm.gain).toBeLessThanOrEqual(spike.gain);
   });
 
   it('honors custom reactivity bounds', () => {

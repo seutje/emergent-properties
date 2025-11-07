@@ -5,9 +5,9 @@ const DEFAULT_CONFIG = {
   inputSize: 17,
   outputSize: 9,
   hiddenLayers: [32],
-  activation: 'tanh',
+  activation: 'relu',
   outputActivation: 'tanh',
-  backend: 'auto',
+  backend: 'webgl',
   seed: 1337,
 };
 

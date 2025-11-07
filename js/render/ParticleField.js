@@ -9,16 +9,16 @@ const DEFAULT_OPTIONS = {
   jitter: 0.35,
   palette: ['#7de1ff', '#587dff', '#ffc4ff', '#e5fff5'],
   colorVariance: 0.08,
-  sizeRange: [2.5, 5.5],
+  sizeRange: [0.5, 5.5],
   flickerRateRange: [0.35, 2.75],
   flickerDepthRange: [0.1, 0.45],
-  seed: 1337,
+  seed: 42,
   rotationSpeed: 0.08,
-  wobbleStrength: 0.12,
+  wobbleStrength: 0.01,
   wobbleFrequency: 0.35,
-  colorMix: 0.65,
+  colorMix: 0.75,
   alphaScale: 1,
-  pointScale: 1,
+  pointScale: 2,
 };
 
 export class ParticleField extends BaseModule {

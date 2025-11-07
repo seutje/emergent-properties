@@ -2,23 +2,23 @@ import { BaseModule } from '../core/BaseModule.js';
 import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
 
 const DEFAULT_OUTPUTS = {
-  deltaPos: { x: 0.45, y: 0.65, z: 0.45 },
-  size: { min: -2.5, max: 2.5 },
-  color: { min: -0.35, max: 0.35 },
-  flickerRate: { min: 0.25, max: 3.5 },
-  flickerDepth: { min: 0.05, max: 0.6 },
+  deltaPos: { x: 1.25, y: 1.6, z: 0.45 },
+  size: { min: -4.3, max: 4.5 },
+  color: { min: -0.91, max: 0.99 },
+  flickerRate: { min: 0.25, max: 7.55 },
+  flickerDepth: { min: 0.06, max: 0.84 },
 };
 
 export const DEFAULT_REACTIVITY = {
-  attack: 0.35,
+  attack: 0.54,
   release: 0.08,
-  boost: 1.35,
+  boost: 1.7,
   curve: 0.85,
   floor: 0.75,
   ceiling: 1.9,
   blendDrop: 0.35,
   minBlend: 0.35,
-  flickerBoost: 1.25,
+  flickerBoost: 1.65,
 };
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -29,7 +29,7 @@ const mapMinusOneToOne = (value, min, max) => {
 };
 const clamp01 = (value) => clamp(value, 0, 1);
 
-export function deriveReactivity(features = {}, prevState = {}, options = DEFAULT_REACTIVITY, baseBlend = 0.9) {
+export function deriveReactivity(features = {}, prevState = {}, options = DEFAULT_REACTIVITY, baseBlend = 1) {
   const opts = {
     ...DEFAULT_REACTIVITY,
     ...(options || {}),
@@ -88,8 +88,8 @@ export class MLPOrchestrator extends BaseModule {
     this.featureExtractor = featureExtractor;
     this.options = {
       enabled: true,
-      rateHz: 20,
-      blend: 0.9,
+      rateHz: 24,
+      blend: 1,
       outputs: { ...DEFAULT_OUTPUTS, ...(options.outputs || {}) },
       reactivity: { ...DEFAULT_REACTIVITY, ...(options.reactivity || {}) },
       ...options,
@@ -165,7 +165,7 @@ export class MLPOrchestrator extends BaseModule {
     await this._computeInference();
   }
 
-  setRate(rateHz = 20) {
+  setRate(rateHz = 24) {
     const clamped = clamp(Number(rateHz) || 0, 5, 90);
     this.options.rateHz = clamped;
     this.interval = 1 / clamped;
@@ -175,8 +175,8 @@ export class MLPOrchestrator extends BaseModule {
     return this.options.rateHz;
   }
 
-  setBlend(value = 0.9) {
-    this.options.blend = clamp(Number(value) || 0.9, 0, 1);
+  setBlend(value = 1) {
+    this.options.blend = clamp(Number(value) || 1, 0, 1);
   }
 
   getBlend() {

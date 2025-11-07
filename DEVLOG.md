@@ -48,3 +48,6 @@
 - Added `MLPTrainingManager`, correlation targets/utils, weight serialization helpers, and wired the manager into `main.js` so freshly trained weights auto-apply to the live orchestrator while staying exportable/importable (JSON snapshots with metadata).
 - Built a dedicated glassmorphic Training Panel UI with dynamic correlation editors, training controls, progress readouts, result summaries, and model import/export inputs; updated PLAN.md and stylesheet to reflect the new workflow.
 - Extended Jest coverage via `MLPTrainingUtils.test.js` to lock down dataset generation, correlation math, and evaluation helpers.
+
+## 2025-11-07
+- Updated the default preset to the new art-directed baseline: switched the TensorFlow backend to `webgl`, enabled `relu` activations, maxed the model blend, and retuned the orchestration clamps/reactivity envelope to the requested ranges so the GUI loads with the approved look/feel without needing preset swaps.

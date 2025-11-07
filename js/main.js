@@ -48,7 +48,8 @@ async function bootstrap() {
     inputSize: 17,
     outputSize: 9,
     hiddenLayers: [32],
-    backend: 'auto',
+    backend: 'webgl',
+    activation: 'relu',
   });
   await mlpModel.init();
 
@@ -58,7 +59,7 @@ async function bootstrap() {
     featureExtractor,
     options: {
       rateHz: 24,
-      blend: 0.85,
+      blend: 1,
     },
   });
   await mlpController.init();
