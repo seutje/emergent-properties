@@ -7,6 +7,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [x] [Human] Confirm repo structure, toolchain (static hosting, no build), and access to DESIGN.md & assets.
 - [x] [AI] Scaffold `index.html`, `styles/`, and `/js` folders per DESIGN.md tree.
 - [x] [Human] Validate environment by launching a static file server and seeing the blank app shell load.
+- [x] [AI] Add `package.json` tooling (Jest + `http-server` start script) for local dev/test loops.
 
 **Acceptance criteria:**
 - Human feels the creative direction is locked.
