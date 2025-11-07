@@ -1,9 +1,10 @@
-import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm';
 import { AudioManager, AudioManagerEvents } from './audio/AudioManager.js';
 import { FeatureExtractor, FEATURE_KEYS } from './audio/FeatureExtractor.js';
 import { Renderer } from './render/Renderer.js';
 import { MLPModel } from './ml/MLPModel.js';
 import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
+import { MLPTrainingManager } from './ml/MLPTrainingManager.js';
+import { UIController } from './ui/UIController.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -62,11 +63,38 @@ async function bootstrap() {
   });
   await mlpController.init();
 
-  const gui = new GUI();
-  gui.title('Emergent Properties');
-  const fpsStats = { fps: 0 };
-  createFeatureGui(gui, featureExtractor, fpsStats);
-  createMlpGui(gui, mlpModel, mlpController);
+  const trainingManager = new MLPTrainingManager({
+    model: mlpModel,
+    featureKeys: FEATURE_KEYS,
+    audioDims: FEATURE_KEYS.length,
+    baseDims: mlpController.baseDims,
+    getBaseSamples: (count = 512) => mlpController.getBaseSamples(count),
+  });
+  trainingManager.init();
+  trainingManager.on('result', async (payload) => {
+    if (payload?.weights) {
+      try {
+        await mlpModel.applyWeights(payload.weights);
+        await mlpController.runOnce();
+      } catch (error) {
+        console.error('[main] Failed to apply trained weights', error);
+      }
+    }
+  });
+
+  const liveStats = { fps: 0, inferenceMs: 0 };
+  const uiController = new UIController({
+    renderer,
+    particleField,
+    audioManager,
+    featureExtractor,
+    mlpModel,
+    mlpController,
+    stats: liveStats,
+    trainingManager,
+    mlpTrainingOptions: trainingManager.getTrainingOptions(),
+  });
+  uiController.init();
 
   const dropOverlay = createDropOverlay();
   document.body.appendChild(dropOverlay);
@@ -77,8 +105,16 @@ async function bootstrap() {
   const gate = createAudioGate(audioManager);
   document.body.appendChild(gate.element);
 
+  const onboarding = createOnboardingOverlay();
+  if (onboarding) {
+    document.body.appendChild(onboarding.element);
+  }
+
   audioManager.on(AudioManagerEvents.STATE, (state) => {
     gate.setVisible(!state.unlocked);
+    if (state.playing || state.unlocked) {
+      onboarding?.complete?.();
+    }
   });
 
   let last = performance.now();
@@ -87,13 +123,16 @@ async function bootstrap() {
     last = timestamp;
     if (delta > 0) {
       const instant = 1 / delta;
-      fpsStats.fps = Number.isFinite(fpsStats.fps)
-        ? fpsStats.fps * 0.9 + instant * 0.1
+      liveStats.fps = Number.isFinite(liveStats.fps)
+        ? liveStats.fps * 0.9 + instant * 0.1
         : instant;
-      fpsStats.fps = Math.round(fpsStats.fps);
+      liveStats.fps = Math.round(liveStats.fps);
     }
     featureExtractor.sample(delta);
     mlpController.update(delta);
+    const stats = mlpController.getStats();
+    const inference = stats?.lastInferenceMs;
+    liveStats.inferenceMs = Number.isFinite(inference) ? Math.round(inference * 100) / 100 : 0;
     renderer.update(delta);
     requestAnimationFrame(loop);
   }
@@ -240,227 +279,48 @@ function createDropOverlay() {
   return overlay;
 }
 
-function createFeatureGui(guiInstance, extractor, liveStats) {
-  const folder = guiInstance.addFolder('Audio Features');
-  const settings = {
-    sampleRate: extractor.options.sampleRate,
-    decimate: extractor.options.decimation.enabled,
-    smoothing: extractor.options.smoothing.enabled,
-    smoothingAlpha: extractor.options.smoothing.alpha,
-  };
-
-  folder
-    .add(settings, 'sampleRate', 5, 120, 1)
-    .name('Sample rate (Hz)')
-    .onChange((value) => extractor.setSampleRate(value));
-
-  folder
-    .add(settings, 'decimate')
-    .name('Decimation enabled')
-    .onChange((value) => extractor.setDecimationEnabled(value));
-
-  folder
-    .add(settings, 'smoothing')
-    .name('EMA enabled')
-    .onChange((value) => extractor.setSmoothingEnabled(value));
-
-  folder
-    .add(settings, 'smoothingAlpha', 0.01, 1, 0.01)
-    .name('EMA alpha')
-    .onChange((value) => extractor.setSmoothingAlpha(value));
-
-  const liveFolder = folder.addFolder('Live Values');
-  const labels = {
-    rms: 'RMS',
-    specCentroid: 'Spectral centroid',
-    specRolloff: 'Spectral rolloff',
-    bandLow: 'Low band',
-    bandMid: 'Mid band',
-    bandHigh: 'High band',
-    peak: 'Peak',
-    zeroCrossRate: 'Zero-cross rate',
-    tempoProxy: 'Tempo proxy',
-  };
-
-  FEATURE_KEYS.forEach((key) => {
-    const controller = liveFolder.add(extractor.getFeatures(), key).name(labels[key] || key).listen();
-    controller.disable?.();
-  });
-
-  if (liveStats && Object.prototype.hasOwnProperty.call(liveStats, 'fps')) {
-    const fpsController = liveFolder.add(liveStats, 'fps').name('FPS').listen();
-    fpsController.disable?.();
+function createOnboardingOverlay(storageKey = 'ep-onboarding-dismissed') {
+  if (typeof document === 'undefined') {
+    return null;
   }
+  const storage = typeof window !== 'undefined' ? window.localStorage : null;
+  const dismissed = storage?.getItem(storageKey) === '1';
+  if (dismissed) {
+    return null;
+  }
+  const wrapper = document.createElement('aside');
+  wrapper.className = 'onboarding-tip';
+  wrapper.setAttribute('role', 'status');
+  const heading = document.createElement('h3');
+  heading.textContent = 'Welcome to Emergent Properties';
+  const intro = document.createElement('p');
+  intro.textContent = 'Drop a track or pick a bundled song, then use the presets panel (right) to sculpt the field.';
+  const list = document.createElement('ul');
+  [
+    'Drag & drop audio anywhere on the screen or use the Upload button.',
+    'Open the “Presets” folder in the UI to swap between curated vibes.',
+    'Tweak audio, render, and model folders to dial in your own look.',
+  ].forEach((tip) => {
+    const li = document.createElement('li');
+    li.textContent = tip;
+    list.append(li);
+  });
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'onboarding-tip__button';
+  button.textContent = "Let's play";
 
-  folder.open();
-  liveFolder.open();
-  return folder;
-}
-
-function createMlpGui(guiInstance, model, orchestrator) {
-  const folder = guiInstance.addFolder('MLP Model');
-  const config = model.getConfig();
-  const outputs = orchestrator.getOutputConfig();
-  const state = {
-    backend: model.getBackend(),
-    activation: config.activation,
-    layers: config.hiddenLayers.length,
-    hiddenUnits: config.hiddenLayers[0] ?? 32,
-    rateHz: orchestrator.getRate(),
-    blend: orchestrator.getBlend(),
-    deltaPosX: outputs.deltaPos.x,
-    deltaPosY: outputs.deltaPos.y,
-    deltaPosZ: outputs.deltaPos.z,
-    sizeMin: outputs.size.min,
-    sizeMax: outputs.size.max,
-    colorMin: outputs.color.min,
-    colorMax: outputs.color.max,
-    flickerRateMin: outputs.flickerRate.min,
-    flickerRateMax: outputs.flickerRate.max,
-    flickerDepthMin: outputs.flickerDepth.min,
-    flickerDepthMax: outputs.flickerDepth.max,
+  const dismiss = () => {
+    wrapper.classList.add('is-hidden');
+    storage?.setItem(storageKey, '1');
+    setTimeout(() => wrapper.remove(), 400);
   };
 
-  const applyModelUpdate = async () => {
-    const layers = new Array(state.layers).fill(state.hiddenUnits);
-    try {
-      await model.rebuild({
-        hiddenLayers: layers,
-        activation: state.activation,
-      });
-      await orchestrator.syncModelDimensions();
-    } catch (error) {
-      console.error('[MLP GUI] Failed to rebuild model', error);
-    }
+  button.addEventListener('click', dismiss);
+  wrapper.append(heading, intro, list, button);
+
+  return {
+    element: wrapper,
+    complete: dismiss,
   };
-
-  folder
-    .add(state, 'backend', ['auto', 'webgl', 'wasm', 'cpu'])
-    .name('Backend')
-    .onChange(async (value) => {
-      try {
-        await model.setBackend(value);
-      } catch (error) {
-        console.error('[MLP GUI] Failed to set backend', error);
-      }
-    });
-
-  folder
-    .add(state, 'activation', ['tanh', 'relu', 'elu'])
-    .name('Activation')
-    .onChange((value) => {
-      state.activation = value;
-      applyModelUpdate();
-    });
-
-  folder
-    .add(state, 'layers', 1, 3, 1)
-    .name('Hidden layers')
-    .onChange((value) => {
-      state.layers = value;
-      applyModelUpdate();
-    });
-
-  folder
-    .add(state, 'hiddenUnits', 8, 96, 4)
-    .name('Hidden units')
-    .onChange((value) => {
-      state.hiddenUnits = value;
-      applyModelUpdate();
-    });
-
-  folder
-    .add(state, 'rateHz', 5, 90, 1)
-    .name('Inference rate (Hz)')
-    .onChange((value) => orchestrator.setRate(value));
-
-  folder
-    .add(state, 'blend', 0, 1, 0.05)
-    .name('Model blend')
-    .onChange((value) => orchestrator.setBlend(value));
-
-  const outputFolder = folder.addFolder('Output clamps');
-
-  outputFolder
-    .add(state, 'deltaPosX', 0.1, 2, 0.05)
-    .name('ΔX range')
-    .onChange((value) => orchestrator.updateOutput('deltaPos', { x: value }));
-
-  outputFolder
-    .add(state, 'deltaPosY', 0.1, 2, 0.05)
-    .name('ΔY range')
-    .onChange((value) => orchestrator.updateOutput('deltaPos', { y: value }));
-
-  outputFolder
-    .add(state, 'deltaPosZ', 0.1, 2, 0.05)
-    .name('ΔZ range')
-    .onChange((value) => orchestrator.updateOutput('deltaPos', { z: value }));
-
-  outputFolder
-    .add(state, 'sizeMin', -5, 0, 0.1)
-    .name('Size min')
-    .onChange((value) => {
-      state.sizeMin = Math.min(value, state.sizeMax - 0.1);
-      orchestrator.updateOutput('size', { min: state.sizeMin });
-    });
-
-  outputFolder
-    .add(state, 'sizeMax', 0, 5, 0.1)
-    .name('Size max')
-    .onChange((value) => {
-      state.sizeMax = Math.max(value, state.sizeMin + 0.1);
-      orchestrator.updateOutput('size', { max: state.sizeMax });
-    });
-
-  outputFolder
-    .add(state, 'colorMin', -1, 0, 0.01)
-    .name('Color min')
-    .onChange((value) => {
-      state.colorMin = Math.min(value, state.colorMax - 0.01);
-      orchestrator.updateOutput('color', { min: state.colorMin });
-    });
-
-  outputFolder
-    .add(state, 'colorMax', 0, 1, 0.01)
-    .name('Color max')
-    .onChange((value) => {
-      state.colorMax = Math.max(value, state.colorMin + 0.01);
-      orchestrator.updateOutput('color', { max: state.colorMax });
-    });
-
-  outputFolder
-    .add(state, 'flickerRateMin', 0, 5, 0.05)
-    .name('Flicker rate min')
-    .onChange((value) => {
-      state.flickerRateMin = Math.min(value, state.flickerRateMax - 0.05);
-      orchestrator.updateOutput('flickerRate', { min: state.flickerRateMin });
-    });
-
-  outputFolder
-    .add(state, 'flickerRateMax', 0.1, 8, 0.05)
-    .name('Flicker rate max')
-    .onChange((value) => {
-      state.flickerRateMax = Math.max(value, state.flickerRateMin + 0.05);
-      orchestrator.updateOutput('flickerRate', { max: state.flickerRateMax });
-    });
-
-  outputFolder
-    .add(state, 'flickerDepthMin', 0, 1, 0.01)
-    .name('Flicker depth min')
-    .onChange((value) => {
-      state.flickerDepthMin = Math.min(value, state.flickerDepthMax - 0.01);
-      orchestrator.updateOutput('flickerDepth', { min: state.flickerDepthMin });
-    });
-
-  outputFolder
-    .add(state, 'flickerDepthMax', 0, 1, 0.01)
-    .name('Flicker depth max')
-    .onChange((value) => {
-      state.flickerDepthMax = Math.max(value, state.flickerDepthMin + 0.01);
-      orchestrator.updateOutput('flickerDepth', { max: state.flickerDepthMax });
-    });
-
-  folder.open();
-  outputFolder.open();
-  return folder;
 }

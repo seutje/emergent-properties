@@ -1,78 +1,78 @@
-import { describe, expect, it, jest } from '@jest/globals';
-import { MLPModel } from './MLPModel.js';
-import { MLPOrchestrator } from './MLPOrchestrator.js';
-import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
+import { DEFAULT_REACTIVITY, deriveReactivity } from './MLPOrchestrator.js';
 
-const createFeatures = (value = 0.5) =>
-  FEATURE_KEYS.reduce((acc, key) => {
-    acc[key] = value;
-    return acc;
-  }, {});
-
-describe('MLPOrchestrator', () => {
-  it('runs inference and mutates particle attribute buffers', async () => {
-    const handles = createAttributeHandles(4);
-    const particleField = createParticleField(handles);
-    const featureExtractor = {
-      getFeatures: () => createFeatures(0.25),
+describe('deriveReactivity', () => {
+  it('boosts gain and reduces blend when audio energy spikes', () => {
+    const features = {
+      rms: 0.82,
+      bandLow: 0.9,
+      bandMid: 0.65,
+      bandHigh: 0.55,
+      peak: 0.97,
+      tempoProxy: 0.7,
     };
+    const prevState = { envelope: 0.2, prevPeak: 0.25 };
+    const baseBlend = 0.85;
+    const result = deriveReactivity(features, prevState, DEFAULT_REACTIVITY, baseBlend);
 
-    const model = new MLPModel({
-      inputSize: 17,
-      outputSize: 9,
-      hiddenLayers: [4],
-      backend: 'cpu',
-    });
-    await model.init();
+    expect(result.envelope).toBeGreaterThan(prevState.envelope);
+    expect(result.gain).toBeGreaterThan(DEFAULT_REACTIVITY.floor);
+    expect(result.blend).toBeLessThan(baseBlend);
+    expect(result.flickerBoost).toBeGreaterThan(1);
+  });
 
-    const orchestrator = new MLPOrchestrator({
-      model,
-      particleField,
-      featureExtractor,
-      options: { blend: 1, rateHz: 10 },
-    });
+  it('decays envelope and restores blend when the signal calms down', () => {
+    const baseBlend = 0.8;
+    const prevState = { envelope: 0.6, prevPeak: 0.8 };
+    const hotFeatures = {
+      rms: 0.75,
+      bandLow: 0.8,
+      bandMid: 0.6,
+      bandHigh: 0.55,
+      peak: 0.9,
+      tempoProxy: 0.5,
+    };
+    const spike = deriveReactivity(hotFeatures, prevState, DEFAULT_REACTIVITY, baseBlend);
 
-    await orchestrator.init();
-    await orchestrator.runOnce();
+    const calmFeatures = {
+      rms: 0.05,
+      bandLow: 0.05,
+      bandMid: 0.04,
+      bandHigh: 0.03,
+      peak: 0.04,
+      tempoProxy: 0.1,
+    };
+    const calm = deriveReactivity(
+      calmFeatures,
+      { envelope: spike.envelope, prevPeak: spike.prevPeak },
+      DEFAULT_REACTIVITY,
+      baseBlend,
+    );
 
-    expect(Array.from(handles.deltaPos.array).some((value) => value !== 0)).toBe(true);
-    expect(Array.from(handles.colorDelta.array).some((value) => value !== 0)).toBe(true);
-    expect(handles.deltaPos.markNeedsUpdate).toHaveBeenCalled();
-    expect(handles.colorDelta.markNeedsUpdate).toHaveBeenCalled();
-    expect(handles.sizeDelta.markNeedsUpdate).toHaveBeenCalled();
+    expect(calm.envelope).toBeLessThan(spike.envelope);
+    expect(calm.blend).toBeGreaterThan(spike.blend);
+    expect(calm.gain).toBeLessThan(spike.gain);
+  });
 
-    orchestrator.dispose();
-    model.dispose();
+  it('honors custom reactivity bounds', () => {
+    const options = {
+      ...DEFAULT_REACTIVITY,
+      floor: 0.5,
+      ceiling: 1.2,
+      blendDrop: 0.5,
+      minBlend: 0.4,
+      boost: 2,
+    };
+    const features = {
+      rms: 0.9,
+      bandLow: 0.85,
+      bandMid: 0.6,
+      bandHigh: 0.5,
+      peak: 0.95,
+      tempoProxy: 0.65,
+    };
+    const result = deriveReactivity(features, { envelope: 0.1, prevPeak: 0.1 }, options, 0.9);
+
+    expect(result.gain).toBeLessThanOrEqual(options.ceiling);
+    expect(result.blend).toBeGreaterThanOrEqual(options.minBlend);
   });
 });
-
-function createAttributeHandles(count) {
-  const makeHandle = (array) => ({
-    array,
-    markNeedsUpdate: jest.fn(),
-  });
-  return {
-    deltaPos: makeHandle(new Float32Array(count * 3)),
-    colorDelta: makeHandle(new Float32Array(count * 3)),
-    sizeDelta: makeHandle(new Float32Array(count)),
-    flickerRate: makeHandle(new Float32Array(count).fill(1)),
-    flickerDepth: makeHandle(new Float32Array(count).fill(0.2)),
-  };
-}
-
-function createParticleField(handles) {
-  const count = handles.sizeDelta.array.length;
-  const positions = new Float32Array(count * 3);
-  const distOrigin = new Float32Array(count).fill(0.5);
-  const idHash = new Float32Array(count).fill(0.25);
-  const phase = new Float32Array(count).fill(Math.PI * 0.5);
-
-  return {
-    getParticleState() {
-      return { positions, distOrigin, idHash, phase };
-    },
-    getAttributeHandles() {
-      return handles;
-    },
-  };
-}

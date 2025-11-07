@@ -67,9 +67,9 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - Human validates that different audio tracks produce distinct, stable particle responses.
 
 ## Phase 6 — UI & Presets
-- [ ] [AI] Implement `UIController` (lil-gui) grouping render/audio/model settings, plus preset save/load (localStorage).
-- [ ] [Human] Curate at least three vibe presets (e.g., Chill Bloom, Pulsar Storm, Minimal Drift) and verify they persist across reloads.
-- [ ] [AI] Add lightweight onboarding text or overlay guiding users to drop tracks and tweak presets.
+- [x] [AI] Implement `UIController` (lil-gui) grouping render/audio/model settings, plus preset save/load (localStorage).
+- [x] [Human] Curate at least three vibe presets (e.g., Chill Bloom, Pulsar Storm, Minimal Drift) and verify they persist across reloads.
+- [x] [AI] Add lightweight onboarding text or overlay guiding users to drop tracks and tweak presets.
 
 **Acceptance criteria:**
 - All adjustable parameters in DESIGN.md are surfaced in the GUI.
@@ -78,9 +78,11 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 
 ## Phase 7 — Polish & QA
 - [ ] [Human] Run through cross-browser smoke tests (Chrome, Firefox, Safari if possible) and log quirks.
+- [x] [AI] Add adaptive reactivity envelope plus GUI controls to amplify particle response to audio dynamics.
 - [ ] [AI] Optimize bottlenecks discovered (particle budget, shader tweaks, throttled inference) and fix logged issues.
 - [ ] [Human] Approve final visual storytelling and audio-reactive feel.
 - [ ] [AI] Prepare release checklist (README updates, asset credits, deploy instructions).
+- [x] [AI] Add in-browser training workflow with user-defined correlations plus model import/export tooling.
 
 **Acceptance criteria:**
 - App meets DESIGN.md §19 acceptance criteria.

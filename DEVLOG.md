@@ -29,3 +29,22 @@
 
 ## 2025-11-07
 - Reverted the particle count tweak so the seeded grid stays at 32,768 points, and instead trimmed the default MLP to a single 32-unit hidden layer (config + GUI defaults) which measurably improves WebGL FPS by lowering inference cost without hurting visual variation.
+
+## 2025-11-07
+- Added the `@tensorflow/tfjs-node` backend for Jest runs plus a Node-aware loader inside `MLPModel` so automated tests use the accelerated native backend without console nags.
+- Updated the ML unit tests to target the `tensorflow` backend, keeping coverage for rebuild flows while avoiding the previous runtime warning.
+
+## 2025-11-07
+- Executed Phase 6 UI work: introduced a full `UIController` that groups audio, renderer, and model controls, surfaces curated presets (with save/load via localStorage), and wires those bindings directly into `ParticleField`, `FeatureExtractor`, and MLP modules.
+- Added a reusable `PresetStore` helper plus Jest coverage to lock down preset persistence logic, and exposed new particle tuning setters + render stats to keep the GUI state reliable.
+- Shipped a closable onboarding overlay that points users toward drag-and-drop uploads and the presets panel, with matching glassmorphic styles to stay on-brand.
+
+## 2025-11-07
+- Boosted audioreactivity by adding a feature-driven envelope in `MLPOrchestrator` that dynamically scales MLP deltas, flicker, and blend smoothing; exposed the new knobs via lil-gui and wired them into preset capture/apply flows plus PLAN.md.
+- Added Jest coverage for the new `deriveReactivity` helper to lock down gain/blend behavior across spikes and quiet passages, and updated CI to keep the added test suite green.
+
+## 2025-11-07
+- Delivered the in-browser training workflow: created a TensorFlow.js web worker pipeline (`MLPTrainingWorker`) that synthesizes datasets from user-specified feature↔particle correlations, runs pause/resume/abort-able training loops, and reports achieved correlation scores plus best checkpoints back to the main thread.
+- Added `MLPTrainingManager`, correlation targets/utils, weight serialization helpers, and wired the manager into `main.js` so freshly trained weights auto-apply to the live orchestrator while staying exportable/importable (JSON snapshots with metadata).
+- Built a dedicated glassmorphic Training Panel UI with dynamic correlation editors, training controls, progress readouts, result summaries, and model import/export inputs; updated PLAN.md and stylesheet to reflect the new workflow.
+- Extended Jest coverage via `MLPTrainingUtils.test.js` to lock down dataset generation, correlation math, and evaluation helpers.

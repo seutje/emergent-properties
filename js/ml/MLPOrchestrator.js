@@ -9,12 +9,76 @@ const DEFAULT_OUTPUTS = {
   flickerDepth: { min: 0.05, max: 0.6 },
 };
 
+export const DEFAULT_REACTIVITY = {
+  attack: 0.35,
+  release: 0.08,
+  boost: 1.35,
+  curve: 0.85,
+  floor: 0.75,
+  ceiling: 1.9,
+  blendDrop: 0.35,
+  minBlend: 0.35,
+  flickerBoost: 1.25,
+};
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
 const mapMinusOneToOne = (value, min, max) => {
   const normalized = (clamp(value, -1, 1) + 1) * 0.5;
   return lerp(min, max, normalized);
 };
+const clamp01 = (value) => clamp(value, 0, 1);
+
+export function deriveReactivity(features = {}, prevState = {}, options = DEFAULT_REACTIVITY, baseBlend = 0.9) {
+  const opts = {
+    ...DEFAULT_REACTIVITY,
+    ...(options || {}),
+  };
+  const prev = {
+    envelope: clamp01(prevState?.envelope ?? 0),
+    prevPeak: clamp01(prevState?.prevPeak ?? 0),
+  };
+  const rms = clamp01(features.rms ?? 0);
+  const low = clamp01(features.bandLow ?? 0);
+  const mid = clamp01(features.bandMid ?? 0);
+  const high = clamp01(features.bandHigh ?? 0);
+  const peak = clamp01(features.peak ?? 0);
+  const tempo = clamp01(features.tempoProxy ?? 0);
+
+  const drive = clamp01(rms * 0.45 + low * 0.3 + mid * 0.15 + high * 0.1 + tempo * 0.12);
+  const transient = Math.max(0, peak - prev.prevPeak) * 0.5;
+  const target = clamp01(drive + transient);
+  const attack = clamp(opts.attack ?? DEFAULT_REACTIVITY.attack, 0.01, 1);
+  const release = clamp(Math.min(opts.release ?? DEFAULT_REACTIVITY.release, attack), 0.01, 1);
+  const delta = target - prev.envelope;
+  const coeff = delta >= 0 ? attack : release;
+  const envelope = clamp01(prev.envelope + delta * coeff);
+
+  const boost = clamp(opts.boost ?? DEFAULT_REACTIVITY.boost, 0.1, 5);
+  const curve = clamp(opts.curve ?? DEFAULT_REACTIVITY.curve, 0.25, 2);
+  const normalized = clamp01(envelope * boost);
+  const curved = Math.pow(normalized, curve);
+
+  const floor = Math.max(0, opts.floor ?? DEFAULT_REACTIVITY.floor);
+  const ceiling = Math.max(floor + 0.01, opts.ceiling ?? DEFAULT_REACTIVITY.ceiling);
+  const gain = lerp(floor, ceiling, curved);
+
+  const blendDrop = clamp01(opts.blendDrop ?? DEFAULT_REACTIVITY.blendDrop);
+  const minBlend = clamp(opts.minBlend ?? DEFAULT_REACTIVITY.minBlend, 0, 1);
+  const base = clamp(baseBlend ?? 0.9, 0, 1);
+  const blend = clamp(base - curved * blendDrop, minBlend, base);
+
+  const flickerBoost = lerp(1, Math.max(1, opts.flickerBoost ?? DEFAULT_REACTIVITY.flickerBoost), curved);
+
+  return {
+    envelope,
+    curved,
+    gain,
+    blend,
+    flickerBoost,
+    prevPeak: peak,
+  };
+}
 
 export class MLPOrchestrator extends BaseModule {
   constructor({ model, particleField, featureExtractor, options = {} } = {}) {
@@ -27,6 +91,7 @@ export class MLPOrchestrator extends BaseModule {
       rateHz: 20,
       blend: 0.9,
       outputs: { ...DEFAULT_OUTPUTS, ...(options.outputs || {}) },
+      reactivity: { ...DEFAULT_REACTIVITY, ...(options.reactivity || {}) },
       ...options,
     };
 
@@ -40,11 +105,17 @@ export class MLPOrchestrator extends BaseModule {
     this._pending = null;
     this._tf = null;
     this.baseTensor = null;
+    this.baseBuffer = null;
     this.featureVector = new Float32Array(this.audioDims);
     this.attributeHandles = null;
     this.lastInferenceMs = 0;
     this.baseFlickerRate = null;
     this.baseFlickerDepth = null;
+    this.lastFeatures = {};
+    this._reactivityState = {
+      envelope: 0,
+      prevPeak: 0,
+    };
   }
 
   async init() {
@@ -112,6 +183,17 @@ export class MLPOrchestrator extends BaseModule {
     return this.options.blend;
   }
 
+  getReactivityConfig() {
+    return { ...this.options.reactivity };
+  }
+
+  updateReactivity(changes = {}) {
+    this.options.reactivity = {
+      ...this.options.reactivity,
+      ...(changes || {}),
+    };
+  }
+
   getOutputConfig() {
     return JSON.parse(JSON.stringify(this.options.outputs));
   }
@@ -170,6 +252,7 @@ export class MLPOrchestrator extends BaseModule {
     }
     this.baseTensor?.dispose?.();
     this.baseTensor = this._tf.tensor2d(buffer, [this.count, this.baseDims]);
+    this.baseBuffer = buffer;
   }
 
   _captureFlickerDefaults() {
@@ -197,7 +280,8 @@ export class MLPOrchestrator extends BaseModule {
     const outputTensor = this.model.predict(inputTensor);
     const data = await outputTensor.data();
     this.lastInferenceMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
-    this._applyOutputs(data);
+    const modifiers = this._computeReactivityModifiers();
+    this._applyOutputs(data, modifiers);
     featureTensor.dispose();
     tiled.dispose();
     inputTensor.dispose();
@@ -210,11 +294,19 @@ export class MLPOrchestrator extends BaseModule {
       const key = FEATURE_KEYS[i];
       const value = source[key];
       this.featureVector[i] = Number.isFinite(value) ? value : 0;
+      this.lastFeatures[key] = this.featureVector[i];
     }
     return this.featureVector;
   }
 
-  _applyOutputs(buffer) {
+  _computeReactivityModifiers() {
+    const result = deriveReactivity(this.lastFeatures, this._reactivityState, this.options.reactivity, this.getBlend());
+    this._reactivityState.envelope = result.envelope;
+    this._reactivityState.prevPeak = result.prevPeak;
+    return result;
+  }
+
+  _applyOutputs(buffer, modifiers = null) {
     if (!buffer || !buffer.length || !this.attributeHandles) {
       return;
     }
@@ -225,7 +317,9 @@ export class MLPOrchestrator extends BaseModule {
       flickerRate,
       flickerDepth,
     } = this.attributeHandles;
-    const blend = clamp(this.options.blend, 0, 1);
+    const gain = clamp(modifiers?.gain ?? 1, 0.1, 4);
+    const flickerBoost = clamp(modifiers?.flickerBoost ?? 1, 0.5, 4);
+    const blend = clamp(modifiers?.blend ?? this.options.blend, 0, 1);
     const outputs = this.options.outputs;
 
     for (let i = 0; i < this.count; i += 1) {
@@ -235,26 +329,33 @@ export class MLPOrchestrator extends BaseModule {
         const scaleX = outputs.deltaPos.x;
         const scaleY = outputs.deltaPos.y;
         const scaleZ = outputs.deltaPos.z;
+        const xRange = scaleX * gain;
+        const yRange = scaleY * gain;
+        const zRange = scaleZ * gain;
         deltaPos.array[stride] = lerp(
           deltaPos.array[stride],
-          clamp(buffer[baseIndex] * scaleX, -scaleX, scaleX),
+          clamp(buffer[baseIndex] * xRange, -xRange, xRange),
           blend,
         );
         deltaPos.array[stride + 1] = lerp(
           deltaPos.array[stride + 1],
-          clamp(buffer[baseIndex + 1] * scaleY, -scaleY, scaleY),
+          clamp(buffer[baseIndex + 1] * yRange, -yRange, yRange),
           blend,
         );
         deltaPos.array[stride + 2] = lerp(
           deltaPos.array[stride + 2],
-          clamp(buffer[baseIndex + 2] * scaleZ, -scaleZ, scaleZ),
+          clamp(buffer[baseIndex + 2] * zRange, -zRange, zRange),
           blend,
         );
       }
 
       if (sizeDelta) {
         const sizeRange = outputs.size;
-        const mapped = mapMinusOneToOne(buffer[baseIndex + 3], sizeRange.min, sizeRange.max);
+        const mapped = mapMinusOneToOne(
+          buffer[baseIndex + 3],
+          sizeRange.min * gain,
+          sizeRange.max * gain,
+        );
         sizeDelta.array[i] = lerp(sizeDelta.array[i], mapped, blend);
       }
 
@@ -264,14 +365,21 @@ export class MLPOrchestrator extends BaseModule {
         const r = mapMinusOneToOne(buffer[baseIndex + 4], colorRange.min, colorRange.max);
         const g = mapMinusOneToOne(buffer[baseIndex + 5], colorRange.min, colorRange.max);
         const b = mapMinusOneToOne(buffer[baseIndex + 6], colorRange.min, colorRange.max);
-        colorDelta.array[cIdx] = lerp(colorDelta.array[cIdx], r, blend);
-        colorDelta.array[cIdx + 1] = lerp(colorDelta.array[cIdx + 1], g, blend);
-        colorDelta.array[cIdx + 2] = lerp(colorDelta.array[cIdx + 2], b, blend);
+        const rScaled = r * gain;
+        const gScaled = g * gain;
+        const bScaled = b * gain;
+        colorDelta.array[cIdx] = lerp(colorDelta.array[cIdx], rScaled, blend);
+        colorDelta.array[cIdx + 1] = lerp(colorDelta.array[cIdx + 1], gScaled, blend);
+        colorDelta.array[cIdx + 2] = lerp(colorDelta.array[cIdx + 2], bScaled, blend);
       }
 
       if (flickerRate) {
         const range = outputs.flickerRate;
-        const mapped = mapMinusOneToOne(buffer[baseIndex + 7], range.min, range.max);
+        const mapped = mapMinusOneToOne(
+          buffer[baseIndex + 7],
+          range.min,
+          range.max * flickerBoost,
+        );
         const base = this.baseFlickerRate ? this.baseFlickerRate[i] : 1;
         const value = lerp(base, mapped, blend);
         flickerRate.array[i] = value;
@@ -279,7 +387,11 @@ export class MLPOrchestrator extends BaseModule {
 
       if (flickerDepth) {
         const range = outputs.flickerDepth;
-        const mapped = mapMinusOneToOne(buffer[baseIndex + 8], range.min, range.max);
+        const mapped = mapMinusOneToOne(
+          buffer[baseIndex + 8],
+          range.min,
+          range.max * flickerBoost,
+        );
         const base = this.baseFlickerDepth ? this.baseFlickerDepth[i] : 0.2;
         flickerDepth.array[i] = lerp(base, mapped, blend);
       }
@@ -290,5 +402,31 @@ export class MLPOrchestrator extends BaseModule {
     colorDelta?.markNeedsUpdate();
     flickerRate?.markNeedsUpdate();
     flickerDepth?.markNeedsUpdate();
+  }
+
+  getBaseSamples(sampleCount = 512) {
+    if (!this.baseBuffer || !this.baseDims || !this.count) {
+      return null;
+    }
+    const total = this.count;
+    const clamped = Math.max(1, Math.min(sampleCount, total));
+    const indices = new Set();
+    while (indices.size < clamped) {
+      indices.add(Math.floor(Math.random() * total));
+    }
+    const result = new Float32Array(clamped * this.baseDims);
+    let offset = 0;
+    indices.forEach((index) => {
+      const src = index * this.baseDims;
+      for (let i = 0; i < this.baseDims; i += 1) {
+        result[offset + i] = this.baseBuffer[src + i];
+      }
+      offset += this.baseDims;
+    });
+    return {
+      buffer: result,
+      count: clamped,
+      dims: this.baseDims,
+    };
   }
 }

@@ -35,6 +35,7 @@ export class ParticleField extends BaseModule {
     this.state = null;
     this.defaults = {};
     this._center = new THREE.Vector3();
+    this._pixelRatio = 1;
   }
 
   init() {
@@ -115,7 +116,39 @@ export class ParticleField extends BaseModule {
   setPixelRatio(pixelRatio = 1) {
     if (!this.uniforms) return;
     const clamped = Math.max(0.5, Math.min(pixelRatio, 3));
-    this.uniforms.uPointScale.value = clamped * this.options.pointScale;
+    this._pixelRatio = clamped;
+    this._syncPointScale();
+  }
+
+  setRotationSpeed(value = this.options.rotationSpeed) {
+    this.options.rotationSpeed = Math.max(0, value);
+  }
+
+  setWobbleStrength(value = this.options.wobbleStrength) {
+    this.options.wobbleStrength = Math.max(0, value);
+  }
+
+  setWobbleFrequency(value = this.options.wobbleFrequency) {
+    this.options.wobbleFrequency = Math.max(0, value);
+  }
+
+  setColorMix(value = this.options.colorMix) {
+    this.options.colorMix = Math.max(0, Math.min(1.5, value));
+    if (this.uniforms?.uColorMix) {
+      this.uniforms.uColorMix.value = this.options.colorMix;
+    }
+  }
+
+  setAlphaScale(value = this.options.alphaScale) {
+    this.options.alphaScale = Math.max(0, Math.min(2, value));
+    if (this.uniforms?.uAlphaScale) {
+      this.uniforms.uAlphaScale.value = this.options.alphaScale;
+    }
+  }
+
+  setPointScale(value = this.options.pointScale) {
+    this.options.pointScale = Math.max(0.25, Math.min(4, value));
+    this._syncPointScale();
   }
 
   getParticleCount() {
@@ -221,5 +254,11 @@ export class ParticleField extends BaseModule {
       }
     });
     return handles;
+  }
+
+  _syncPointScale() {
+    if (!this.uniforms?.uPointScale) return;
+    const ratio = this._pixelRatio || 1;
+    this.uniforms.uPointScale.value = ratio * this.options.pointScale;
   }
 }

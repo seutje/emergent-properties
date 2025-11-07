@@ -8,22 +8,22 @@ describe('MLPModel', () => {
       outputSize: 2,
       hiddenLayers: [8],
       activation: 'relu',
-      backend: 'cpu',
+      backend: 'tensorflow',
     });
 
     await model.init();
-    expect(model.getBackend()).toBe('cpu');
+    expect(model.getBackend()).toBe('tensorflow');
     expect(model.model.layers).toHaveLength(2); // 1 hidden + 1 output
     expect(model.model.layers[0].units).toBe(8);
     model.dispose();
   });
 
   it('rebuilds when config changes and updates hidden layers', async () => {
-    const model = new MLPModel({ inputSize: 6, outputSize: 3, hiddenLayers: [10] });
+    const model = new MLPModel({ inputSize: 6, outputSize: 3, hiddenLayers: [10], backend: 'tensorflow' });
     await model.init();
     expect(model.model.layers[0].units).toBe(10);
 
-    await model.rebuild({ hiddenLayers: [12, 12], activation: 'tanh', backend: 'cpu' });
+    await model.rebuild({ hiddenLayers: [12, 12], activation: 'tanh', backend: 'tensorflow' });
     expect(model.model.layers).toHaveLength(3); // 2 hidden + output
     expect(model.model.layers[0].units).toBe(12);
     expect(model.model.layers[1].units).toBe(12);
@@ -31,7 +31,7 @@ describe('MLPModel', () => {
   });
 
   it('runs predictions that respect configured input/output shapes', async () => {
-    const model = new MLPModel({ inputSize: 3, outputSize: 5, hiddenLayers: [4], backend: 'cpu' });
+    const model = new MLPModel({ inputSize: 3, outputSize: 5, hiddenLayers: [4], backend: 'tensorflow' });
     await model.init();
     const tf = model.getTF();
     const input = tf.ones([2, 3]);

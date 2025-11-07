@@ -1,4 +1,5 @@
 import { BaseModule } from '../core/BaseModule.js';
+import { serializeModelWeights, applySerializedWeights } from './MLPWeightUtils.js';
 
 const DEFAULT_CONFIG = {
   inputSize: 17,
@@ -10,7 +11,7 @@ const DEFAULT_CONFIG = {
   seed: 1337,
 };
 
-const VALID_BACKENDS = ['auto', 'webgl', 'wasm', 'cpu'];
+const VALID_BACKENDS = ['auto', 'webgl', 'wasm', 'cpu', 'tensorflow'];
 
 const toArray = (value) => {
   if (Array.isArray(value) && value.length) {
@@ -99,6 +100,42 @@ export class MLPModel extends BaseModule {
     super.dispose();
   }
 
+  async exportSnapshot(metadata = {}) {
+    if (!this.model) {
+      throw new Error('[MLPModel] Cannot export snapshot before init().');
+    }
+    const weights = await serializeModelWeights(this.model);
+    return {
+      version: 1,
+      createdAt: Date.now(),
+      backend: this.getBackend(),
+      config: this.getConfig(),
+      metadata,
+      weights,
+    };
+  }
+
+  async applyWeights(serialized = []) {
+    if (!this.model) {
+      throw new Error('[MLPModel] Model not initialized.');
+    }
+    if (!serialized?.length) {
+      return;
+    }
+    const tf = this.getTF();
+    applySerializedWeights(this.model, tf, serialized);
+  }
+
+  async importSnapshot(snapshot = {}) {
+    if (!snapshot || !snapshot.weights) {
+      throw new Error('[MLPModel] Invalid model snapshot.');
+    }
+    const config = snapshot.config || this.getConfig();
+    await this.rebuild(config);
+    await this.applyWeights(snapshot.weights);
+    return snapshot.metadata || null;
+  }
+
   async _ensureTensorFlow() {
     if (this.tf) {
       return this.tf;
@@ -108,9 +145,32 @@ export class MLPModel extends BaseModule {
       return this.tf;
     }
     if (typeof window === 'undefined') {
-      const tf = await import('@tensorflow/tfjs');
-      this.tf = tf;
-      return this.tf;
+      const tryLoad = async (specifier, { quiet = false } = {}) => {
+        try {
+          const module = await import(specifier);
+          return module?.default ?? module;
+        } catch (error) {
+          if (!quiet) {
+            console.warn(`[MLPModel] Failed to load ${specifier}`, error);
+          }
+          return null;
+        }
+      };
+
+      // Prefer the accelerated native backend when running under Node.js tests.
+      const tfNode = await tryLoad('@tensorflow/tfjs-node', { quiet: true });
+      if (tfNode) {
+        this.tf = tfNode;
+        return this.tf;
+      }
+
+      const tf = await tryLoad('@tensorflow/tfjs');
+      if (tf) {
+        this.tf = tf;
+        return this.tf;
+      }
+
+      throw new Error('[MLPModel] Unable to load TensorFlow.js in Node environment.');
     }
     throw new Error('[MLPModel] TensorFlow.js not found on window. Include tf.min.js before main.js.');
   }
