@@ -46,9 +46,9 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - Human signs off that feature trends match the audio intuitively.
 
 ## Phase 4 — Particle Field & Attributes
-- [ ] [AI] Create `ParticleField` with instanced geometry (≥30k particles), seeded variation, and GPU buffers for attributes described in DESIGN.md §5.
-- [ ] [Human] Confirm baseline color palette + spacing match vibe references; request tweaks if needed.
-- [ ] [AI] Wire attribute update hooks so external systems (MLP outputs) can mutate position/color/flicker.
+- [x] [AI] Create `ParticleField` with instanced geometry (≥30k particles), seeded variation, and GPU buffers for attributes described in DESIGN.md §5.
+- [x] [Human] Confirm baseline color palette + spacing match vibe references; request tweaks if needed.
+- [x] [AI] Wire attribute update hooks so external systems (MLP outputs) can mutate position/color/flicker.
 
 **Acceptance criteria:**
 - Scene renders ≥30k particles at ≥45 FPS on reference hardware.

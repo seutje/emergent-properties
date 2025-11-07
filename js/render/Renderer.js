@@ -5,7 +5,7 @@ import { ParticleField } from './ParticleField.js';
 
 const DEFAULTS = {
   clearColor: '#050505',
-  placeholderCount: 6000,
+  placeholderCount: 32768,
   pixelRatioLimit: 1.8,
 };
 
@@ -22,6 +22,7 @@ export class Renderer extends BaseModule {
     this.particleField = null;
     this.elapsed = 0;
     this.onResize = this.onResize.bind(this);
+    this._sceneCenter = new THREE.Vector3();
   }
 
   init() {
@@ -57,6 +58,8 @@ export class Renderer extends BaseModule {
       count: this.options.placeholderCount,
     });
     this.particleField.init();
+    this.particleField.setPixelRatio(this._getPixelRatio());
+    this._syncCameraTarget();
 
     this._observeContainer();
     this.onResize();
@@ -87,6 +90,8 @@ export class Renderer extends BaseModule {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    this.particleField?.setPixelRatio(this._getPixelRatio());
+    this._syncCameraTarget();
   }
 
   dispose() {
@@ -130,6 +135,26 @@ export class Renderer extends BaseModule {
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     } else if ('outputEncoding' in this.renderer) {
       this.renderer.outputEncoding = THREE.sRGBEncoding;
+    }
+  }
+
+  getParticleField() {
+    return this.particleField;
+  }
+
+  focusOnParticles() {
+    this._syncCameraTarget();
+  }
+
+  _syncCameraTarget() {
+    if (!this.controls || !this.particleField) {
+      return;
+    }
+    const center = this.particleField.getBoundsCenter(this._sceneCenter);
+    this.controls.target.copy(center);
+    this.controls.update();
+    if (this.camera) {
+      this.camera.lookAt(center);
     }
   }
 }
