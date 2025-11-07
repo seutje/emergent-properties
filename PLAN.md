@@ -5,7 +5,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 ## Phase 0 — Alignment & Environment
 - [ ] [Human] Kickoff vibe-sync between human + AI about audio-visual goals, creative references, and scope guardrails.
 - [ ] [Human] Confirm repo structure, toolchain (static hosting, no build), and access to DESIGN.md & assets.
-- [ ] [AI] Scaffold `index.html`, `styles/`, and `/js` folders per DESIGN.md tree.
+- [x] [AI] Scaffold `index.html`, `styles/`, and `/js` folders per DESIGN.md tree.
 - [ ] [Human] Validate environment by launching a static file server and seeing the blank app shell load.
 
 **Acceptance criteria:**
