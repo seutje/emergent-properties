@@ -1,6 +1,6 @@
 import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm';
 import { AudioManager, AudioManagerEvents } from './audio/AudioManager.js';
-import { FeatureExtractor } from './audio/FeatureExtractor.js';
+import { FeatureExtractor, FEATURE_KEYS } from './audio/FeatureExtractor.js';
 import { Renderer } from './render/Renderer.js';
 
 const BUNDLED_TRACKS = [
@@ -33,10 +33,11 @@ const audioManager = new AudioManager({
 audioManager.init();
 
 const featureExtractor = new FeatureExtractor(audioManager.getAnalyser());
+featureExtractor.init();
 
 const gui = new GUI();
 gui.title('Emergent Properties');
-gui.domElement.style.display = 'none'; // hide until controls are wired in a later phase
+createFeatureGui(gui, featureExtractor);
 
 const dropOverlay = createDropOverlay();
 document.body.appendChild(dropOverlay);
@@ -56,7 +57,7 @@ function loop(timestamp) {
   const delta = (timestamp - last) * 0.001;
   last = timestamp;
   renderer.update(delta);
-  featureExtractor.sample();
+  featureExtractor.sample(delta);
   requestAnimationFrame(loop);
 }
 
@@ -199,4 +200,56 @@ function createDropOverlay() {
   overlay.innerHTML = '<p>Drop audio files to play them instantly</p>';
   overlay.setAttribute('aria-hidden', 'true');
   return overlay;
+}
+
+function createFeatureGui(guiInstance, extractor) {
+  const folder = guiInstance.addFolder('Audio Features');
+  const settings = {
+    sampleRate: extractor.options.sampleRate,
+    decimate: extractor.options.decimation.enabled,
+    smoothing: extractor.options.smoothing.enabled,
+    smoothingAlpha: extractor.options.smoothing.alpha,
+  };
+
+  folder
+    .add(settings, 'sampleRate', 5, 120, 1)
+    .name('Sample rate (Hz)')
+    .onChange((value) => extractor.setSampleRate(value));
+
+  folder
+    .add(settings, 'decimate')
+    .name('Decimation enabled')
+    .onChange((value) => extractor.setDecimationEnabled(value));
+
+  folder
+    .add(settings, 'smoothing')
+    .name('EMA enabled')
+    .onChange((value) => extractor.setSmoothingEnabled(value));
+
+  folder
+    .add(settings, 'smoothingAlpha', 0.01, 1, 0.01)
+    .name('EMA alpha')
+    .onChange((value) => extractor.setSmoothingAlpha(value));
+
+  const liveFolder = folder.addFolder('Live Values');
+  const labels = {
+    rms: 'RMS',
+    specCentroid: 'Spectral centroid',
+    specRolloff: 'Spectral rolloff',
+    bandLow: 'Low band',
+    bandMid: 'Mid band',
+    bandHigh: 'High band',
+    peak: 'Peak',
+    zeroCrossRate: 'Zero-cross rate',
+    tempoProxy: 'Tempo proxy',
+  };
+
+  FEATURE_KEYS.forEach((key) => {
+    const controller = liveFolder.add(extractor.getFeatures(), key).name(labels[key] || key).listen();
+    controller.disable?.();
+  });
+
+  folder.open();
+  liveFolder.open();
+  return folder;
 }

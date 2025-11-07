@@ -36,9 +36,9 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - AudioManager emits events/signals other modules can subscribe to.
 
 ## Phase 3 — Feature Extraction & Smoothing
-- [ ] [AI] Implement `FeatureExtractor` computing RMS, spectral centroid, rolloff, band energies, and tempo proxy as per DESIGN.md §6.
-- [ ] [Human] Listen/observe lil-gui debug readouts to ensure features react plausibly to bass/treble-heavy tracks.
-- [ ] [AI] Add smoothing/EMA + decimation toggles exposed through lil-gui.
+- [x] [AI] Implement `FeatureExtractor` computing RMS, spectral centroid, rolloff, band energies, and tempo proxy as per DESIGN.md §6.
+- [x] [Human] Listen/observe lil-gui debug readouts to ensure features react plausibly to bass/treble-heavy tracks.
+- [x] [AI] Add smoothing/EMA + decimation toggles exposed through lil-gui.
 
 **Acceptance criteria:**
 - Feature vectors update at the configured sample rate without blocking the render loop.
