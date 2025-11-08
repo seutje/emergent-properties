@@ -115,9 +115,10 @@ export class MLPTrainingManager extends BaseModule {
     if (typeof baseSampleProvider === 'function') {
       baseSamples = (await baseSampleProvider()) || baseSamples;
     }
+    const { baseWeights = null, ...trainingOverrides } = overrides || {};
     const mergedOptions = {
       ...this.trainingOptions,
-      ...(overrides || {}),
+      ...trainingOverrides,
     };
 
     const payload = {
@@ -136,10 +137,19 @@ export class MLPTrainingManager extends BaseModule {
       },
       training: mergedOptions,
     };
+    if (Array.isArray(baseWeights) && baseWeights.length) {
+      payload.baseWeights = baseWeights;
+    }
 
     const transfer = payload.baseSamples ? [payload.baseSamples.buffer] : [];
     this.worker.postMessage({ type: 'start', payload }, transfer);
-    this._setState({ status: 'running', epoch: 0, loss: null, metadata: null });
+    this._setState({
+      status: 'running',
+      epoch: 0,
+      epochs: mergedOptions.epochs ?? this.trainingOptions.epochs,
+      loss: null,
+      metadata: null,
+    });
   }
 
   pauseTraining() {

@@ -223,6 +223,13 @@ async function handleStart(payload = {}) {
   const targetsTensor = tf.tensor2d(dataset.targets, [dataset.sampleCount, dataset.outputSize]);
 
   const model = buildModel(modelConfig);
+  if (payload.baseWeights?.length) {
+    try {
+      applySerializedWeights(model, tf, payload.baseWeights);
+    } catch (error) {
+      console.warn('[MLPTrainingWorker] Failed to apply base weights, continuing with random init.', error);
+    }
+  }
   const optimizer = tf.train.adam(training.learningRate);
   model.compile({
     optimizer,

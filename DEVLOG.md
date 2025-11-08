@@ -92,3 +92,6 @@
 
 ## 2025-11-09
 - Added a "Random model" control to the Training Panel that reseeds the TensorFlow model (and refreshes the orchestrator) so humans can audition fresh weight initializations before running a training session; the button disables during runs to avoid mid-training rebuilds.
+
+## 2025-11-09
+- Added a Finetune button to the training panel that snapshots the active MLP weights, feeds them into the training manager, and lets the worker resume training from the current model instead of random init—complete with button-state wiring, PLAN updates, and a full Jest run to keep coverage green.

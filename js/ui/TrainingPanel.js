@@ -207,10 +207,18 @@ export class TrainingPanel extends BaseModule {
     const controls = createElement('div', 'training-panel__actions');
     this.buttons.random = this._createActionButton('Random model', 'ghost', () => this._handleRandomModel());
     this.buttons.start = this._createActionButton('Train', 'primary', () => this._handleStart());
+    this.buttons.finetune = this._createActionButton('Finetune', 'ghost', () => this._handleFinetune());
     this.buttons.pause = this._createActionButton('Pause', 'ghost', () => this.trainingManager.pauseTraining());
     this.buttons.resume = this._createActionButton('Resume', 'ghost', () => this.trainingManager.resumeTraining());
     this.buttons.abort = this._createActionButton('Abort & Apply', 'danger', () => this.trainingManager.abortTraining());
-    controls.append(this.buttons.random, this.buttons.start, this.buttons.pause, this.buttons.resume, this.buttons.abort);
+    controls.append(
+      this.buttons.random,
+      this.buttons.start,
+      this.buttons.finetune,
+      this.buttons.pause,
+      this.buttons.resume,
+      this.buttons.abort,
+    );
 
     section.append(grid, controls);
     return section;
@@ -422,6 +430,44 @@ export class TrainingPanel extends BaseModule {
     }
   }
 
+  async _handleFinetune() {
+    this._clearError();
+    if (!this.trainingManager) {
+      this._showError('Training manager unavailable.');
+      return;
+    }
+    if (!this.mlpModel) {
+      this._showError('MLP Model unavailable.');
+      return;
+    }
+    const button = this.buttons.finetune;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Finetuning...';
+    }
+    try {
+      const snapshot = await this.mlpModel.exportSnapshot({
+        label: 'Finetune base',
+        correlations: this.state.correlations,
+      });
+      const weights = snapshot?.weights;
+      if (!weights?.length) {
+        throw new Error('Unable to capture current model weights.');
+      }
+      await this.trainingManager.startTraining({
+        ...this.state.trainingOptions,
+        baseWeights: weights,
+      });
+    } catch (error) {
+      this._showError(error?.message || 'Unable to finetune model.');
+    } finally {
+      if (button) {
+        button.textContent = 'Finetune';
+        button.disabled = this.state.status === 'running';
+      }
+    }
+  }
+
   async _handleRandomModel() {
     this._clearError();
     if (!this.mlpModel) {
@@ -486,6 +532,9 @@ export class TrainingPanel extends BaseModule {
     }
     if (this.buttons.random) {
       this.buttons.random.disabled = status === 'running';
+    }
+    if (this.buttons.finetune) {
+      this.buttons.finetune.disabled = status === 'running';
     }
     if (this.buttons.pause) {
       this.buttons.pause.disabled = status !== 'running';
