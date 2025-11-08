@@ -127,6 +127,9 @@ export class UIController extends BaseModule {
     this.sections = {};
     this.trainingManager = options.trainingManager || null;
     this.trainingPanel = null;
+    this.startClosed = Object.prototype.hasOwnProperty.call(options, 'startClosed')
+      ? Boolean(options.startClosed)
+      : true;
     const hasCustomStorage = Object.prototype.hasOwnProperty.call(options, 'storage');
     this.store = new PresetStore({
       storageKey: options.storageKey || 'emergent-presets',
@@ -150,6 +153,9 @@ export class UIController extends BaseModule {
     }
 
     this.gui = new GUI({ title: this.options.title || 'Emergent Properties' });
+    if (this.startClosed && typeof this.gui.close === 'function') {
+      this.gui.close();
+    }
     this._buildFeatureFolder();
     this._buildRenderFolder();
     this._buildMlpFolder();

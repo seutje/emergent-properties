@@ -72,3 +72,6 @@
 ## 2025-11-08
 - Added a perceived-linear volume slider (defaulting to 70%) to the transport controls so listeners can dial gain without leaving the glassmorphic UI, plus matching styles and readouts to keep it on-brand.
 - Reworked `AudioManager` volume handling to treat slider positions as perceived loudness (squared before hitting the gain node), expose the live volume in STATE events, and backfilled Jest coverage for the new curve.
+
+## 2025-11-08
+- Set the lil-gui controller to initialize in a closed state (with an opt-out flag) so first impressions stay focused on the scene while still letting power users pop the panel open when needed.
