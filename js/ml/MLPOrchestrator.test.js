@@ -1,4 +1,5 @@
-import { DEFAULT_REACTIVITY, deriveReactivity } from './MLPOrchestrator.js';
+import { jest } from '@jest/globals';
+import { DEFAULT_REACTIVITY, deriveReactivity, MLPOrchestrator } from './MLPOrchestrator.js';
 
 describe('deriveReactivity', () => {
   it('boosts gain and reduces blend when audio energy spikes', () => {
@@ -74,5 +75,64 @@ describe('deriveReactivity', () => {
 
     expect(result.gain).toBeLessThanOrEqual(options.ceiling);
     expect(result.blend).toBeGreaterThanOrEqual(options.minBlend);
+  });
+});
+
+describe('MLPOrchestrator', () => {
+  it('refreshes particle state tensors and flicker baselines when reseeded', () => {
+    const stateA = {
+      positions: new Float32Array([0, 0, 0, 0, 0, 1]),
+      distOrigin: new Float32Array([0, 1]),
+      idHash: new Float32Array([0.25, 0.5]),
+      phase: new Float32Array([0, 0]),
+    };
+    const stateB = {
+      positions: new Float32Array([1, 0, 0, 0, 2, 0]),
+      distOrigin: new Float32Array([1, 2]),
+      idHash: new Float32Array([0.1, 0.9]),
+      phase: new Float32Array([0, 0]),
+    };
+    const flickerRate = new Float32Array([0.4, 0.6]);
+    const flickerDepth = new Float32Array([0.1, 0.2]);
+    const handles = {
+      flickerRate: { array: flickerRate },
+      flickerDepth: { array: flickerDepth },
+    };
+    const particleField = {
+      getParticleState: jest.fn().mockReturnValueOnce(stateA).mockReturnValueOnce(stateB),
+      getAttributeHandles: jest.fn(() => handles),
+    };
+    const orchestrator = new MLPOrchestrator({ model: {}, particleField, featureExtractor: null });
+    orchestrator._tf = {
+      tensor2d: jest.fn((buffer, shape) => ({ buffer, shape, dispose: jest.fn() })),
+    };
+
+    orchestrator.refreshParticleState();
+
+    expect(orchestrator.count).toBe(2);
+    expect(orchestrator.baseBuffer).toEqual(
+      new Float32Array([
+        0, 0, 0, 0, 0.25, 0, 1, 0,
+        0, 0, 1, 1, 0.5, 0, 1, 0,
+      ]),
+    );
+    expect(orchestrator.baseFlickerRate).toEqual(new Float32Array([0.4, 0.6]));
+    expect(orchestrator._tf.tensor2d).toHaveBeenCalledWith(expect.any(Float32Array), [2, orchestrator.baseDims]);
+
+    flickerRate.set([0.2, 0.8]);
+    flickerDepth.set([0.05, 0.25]);
+
+    orchestrator.refreshParticleState();
+
+    expect(orchestrator.count).toBe(2);
+    expect(orchestrator.baseBuffer).toEqual(
+      new Float32Array([
+        1, 0, 0, 1, 0.1, 0, 1, 0,
+        0, 2, 0, 2, 0.9, 0, 1, 0,
+      ]),
+    );
+    expect(orchestrator.baseFlickerRate).toEqual(new Float32Array([0.2, 0.8]));
+    expect(orchestrator.baseFlickerDepth).toEqual(new Float32Array([0.05, 0.25]));
+    expect(orchestrator._tf.tensor2d).toHaveBeenLastCalledWith(expect.any(Float32Array), [2, orchestrator.baseDims]);
   });
 });

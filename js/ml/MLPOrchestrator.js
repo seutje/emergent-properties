@@ -226,6 +226,15 @@ export class MLPOrchestrator extends BaseModule {
     this.outputDims = this.model.getConfig().outputSize;
   }
 
+  refreshParticleState() {
+    if (!this.particleField || !this._tf) {
+      return;
+    }
+    this.attributeHandles = this.particleField.getAttributeHandles();
+    this._captureFlickerDefaults();
+    this._prepareStaticInputs();
+  }
+
   _prepareStaticInputs() {
     const state = this.particleField.getParticleState();
     if (!state) {

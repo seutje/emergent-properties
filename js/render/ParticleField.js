@@ -9,7 +9,7 @@ const DEFAULT_OPTIONS = {
   jitter: 0.35,
   palette: ['#7de1ff', '#587dff', '#ffc4ff', '#e5fff5'],
   colorVariance: 0.08,
-  sizeRange: [0.5, 5.5],
+  sizeRange: [2.5, 5.5],
   flickerRateRange: [0.35, 2.75],
   flickerDepthRange: [0.1, 0.45],
   seed: 42,
@@ -151,6 +151,31 @@ export class ParticleField extends BaseModule {
     this._syncPointScale();
   }
 
+  setSeed(value = this.options.seed) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return this;
+    }
+    const nextSeed = Math.floor(parsed);
+    if (nextSeed === this.options.seed) {
+      return this;
+    }
+    this.options.seed = nextSeed;
+    if (!this.geometry) {
+      return this;
+    }
+    const layout = generateParticleAttributes(this.options);
+    if (!this._applyLayoutToGeometry(layout)) {
+      // Fallback rebuild in the unlikely event attribute sizes changed.
+      this.dispose();
+      this.init();
+      this.setPixelRatio(this._pixelRatio);
+      return this;
+    }
+    this.resetDynamicAttributes();
+    return this;
+  }
+
   getParticleCount() {
     return this.count || 0;
   }
@@ -260,5 +285,46 @@ export class ParticleField extends BaseModule {
     if (!this.uniforms?.uPointScale) return;
     const ratio = this._pixelRatio || 1;
     this.uniforms.uPointScale.value = ratio * this.options.pointScale;
+  }
+
+  _applyLayoutToGeometry(layout) {
+    if (!this.geometry) {
+      return false;
+    }
+    const updated = [
+      this._copyAttributeArray('position', layout.positions),
+      this._copyAttributeArray('aBaseColor', layout.baseColor),
+      this._copyAttributeArray('aBaseSize', layout.baseSize),
+      this._copyAttributeArray('aPhase', layout.phase),
+      this._copyAttributeArray('aIdHash', layout.idHash),
+      this._copyAttributeArray('aFlickerRate', layout.flickerRate),
+      this._copyAttributeArray('aFlickerDepth', layout.flickerDepth),
+    ];
+    if (updated.includes(false)) {
+      return false;
+    }
+    this.count = layout.count;
+    this.state = {
+      positions: layout.positions,
+      idHash: layout.idHash,
+      phase: layout.phase,
+      distOrigin: layout.distOrigin,
+      grid: layout.grid,
+      seed: layout.seed,
+    };
+    this.defaults.flickerRate = new Float32Array(layout.flickerRate);
+    this.defaults.flickerDepth = new Float32Array(layout.flickerDepth);
+    this.geometry.computeBoundingSphere();
+    return true;
+  }
+
+  _copyAttributeArray(name, source) {
+    const attribute = this.geometry.getAttribute(name);
+    if (!attribute || attribute.array.length !== source.length) {
+      return false;
+    }
+    attribute.array.set(source);
+    attribute.needsUpdate = true;
+    return true;
   }
 }

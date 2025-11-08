@@ -51,3 +51,7 @@
 
 ## 2025-11-07
 - Updated the default preset to the new art-directed baseline: switched the TensorFlow backend to `webgl`, enabled `relu` activations, maxed the model blend, and retuned the orchestration clamps/reactivity envelope to the requested ranges so the GUI loads with the approved look/feel without needing preset swaps.
+
+## 2025-11-07
+- Added a particle seed control: `ParticleField` can now regenerate its seeded layout on demand, lil-gui exposes the seed so users can dial in deterministic variations, and reseeding keeps geometry/delta buffers in sync.
+- Wired `UIController` to notify `MLPOrchestrator.refreshParticleState`, implemented that refresh hook so the MLP rebuilds its static tensors/flicker baselines after reseeds, and extended `MLPOrchestrator.test.js` to lock down the new behavior.

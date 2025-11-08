@@ -29,6 +29,7 @@ const BUILTIN_PRESETS = [
         colorMix: 0.55,
         alphaScale: 0.8,
         pointScale: 1.1,
+        seed: 311,
       },
       mlp: {
         activation: 'tanh',
@@ -59,6 +60,7 @@ const BUILTIN_PRESETS = [
         colorMix: 0.85,
         alphaScale: 1.2,
         pointScale: 1.4,
+        seed: 777,
       },
       mlp: {
         activation: 'relu',
@@ -89,6 +91,7 @@ const BUILTIN_PRESETS = [
         colorMix: 0.35,
         alphaScale: 0.65,
         pointScale: 0.85,
+        seed: 1337,
       },
       mlp: {
         activation: 'tanh',
@@ -284,6 +287,7 @@ export class UIController extends BaseModule {
       colorMix: field.options.colorMix,
       alphaScale: field.options.alphaScale,
       pointScale: field.options.pointScale,
+      seed: field.options.seed,
     };
 
     const controllers = {
@@ -311,6 +315,13 @@ export class UIController extends BaseModule {
         .add(state, 'pointScale', 0.5, 2.5, 0.05)
         .name('Point scale')
         .onChange((value) => field.setPointScale(value)),
+      seed: folder
+        .add(state, 'seed', 0, 100000, 1)
+        .name('Particle seed')
+        .onFinishChange((value) => {
+          field.setSeed(value);
+          this._handleParticleSeedChange();
+        }),
     };
 
     folder.add({ recenter: () => this.renderer?.focusOnParticles?.() }, 'recenter').name('Recenter camera');
@@ -616,6 +627,7 @@ export class UIController extends BaseModule {
       colorMix: field.options.colorMix,
       alphaScale: field.options.alphaScale,
       pointScale: field.options.pointScale,
+      seed: field.options.seed,
     };
   }
 
@@ -662,13 +674,21 @@ export class UIController extends BaseModule {
       colorMix: 'setColorMix',
       alphaScale: 'setAlphaScale',
       pointScale: 'setPointScale',
+      seed: 'setSeed',
     };
     Object.entries(map).forEach(([key, method]) => {
       if (Object.prototype.hasOwnProperty.call(settings, key) && typeof this.particleField[method] === 'function') {
         this.particleField[method](settings[key]);
         this._setControllerValue(this.sections.render.controllers[key], settings[key]);
+        if (key === 'seed') {
+          this._handleParticleSeedChange();
+        }
       }
     });
+  }
+
+  _handleParticleSeedChange() {
+    this.mlpController?.refreshParticleState?.();
   }
 
   async _applyMlpSettings(settings) {
