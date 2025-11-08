@@ -4,13 +4,32 @@ export const FEATURE_KEYS = [
   'rms',
   'specCentroid',
   'specRolloff',
-  'bandLow',
+  'bandSub',
+  'bandBass',
+  'bandLowMid',
   'bandMid',
   'bandHigh',
   'peak',
   'zeroCrossRate',
   'tempoProxy',
 ];
+
+const DEFAULT_BANDS = Object.freeze({
+  bandSub: [20, 60],
+  bandBass: [60, 250],
+  bandLowMid: [250, 500],
+  bandMid: [500, 2000],
+  bandHigh: [2000, 8000],
+});
+
+const LEGACY_BAND_KEYS = {
+  low: 'bandBass',
+  bandLow: 'bandBass',
+  mid: 'bandMid',
+  bandMid: 'bandMid',
+  high: 'bandHigh',
+  bandHigh: 'bandHigh',
+};
 
 const DEFAULT_OPTIONS = {
   sampleRate: 30, // target feature refresh rate (Hz)
@@ -21,11 +40,7 @@ const DEFAULT_OPTIONS = {
   decimation: {
     enabled: true,
   },
-  bands: {
-    low: [20, 250],
-    mid: [250, 2000],
-    high: [2000, 8000],
-  },
+  bands: DEFAULT_BANDS,
   rolloffPercent: 0.85,
   tempo: {
     minBpm: 60,
@@ -45,6 +60,27 @@ const createFeatureTemplate = () =>
     return acc;
   }, {});
 
+const isValidBandRange = (value) =>
+  Array.isArray(value) &&
+  value.length === 2 &&
+  value.every((entry) => Number.isFinite(entry));
+
+const sanitizeBands = (custom = {}) => {
+  const normalized = { ...DEFAULT_BANDS };
+  Object.entries(custom || {}).forEach(([rawKey, range]) => {
+    const key = LEGACY_BAND_KEYS[rawKey] || rawKey;
+    if (!normalized[key] || !isValidBandRange(range)) {
+      return;
+    }
+    const [startHz, endHz] = range;
+    if (Math.max(0, endHz) <= Math.max(0, startHz)) {
+      return;
+    }
+    normalized[key] = [Math.max(0, startHz), Math.max(0, endHz)];
+  });
+  return normalized;
+};
+
 const mergeOptions = (overrides = {}) => ({
   ...DEFAULT_OPTIONS,
   ...overrides,
@@ -56,10 +92,7 @@ const mergeOptions = (overrides = {}) => ({
     ...DEFAULT_OPTIONS.decimation,
     ...(overrides.decimation || {}),
   },
-  bands: {
-    ...DEFAULT_OPTIONS.bands,
-    ...(overrides.bands || {}),
-  },
+  bands: sanitizeBands(overrides.bands),
   tempo: {
     ...DEFAULT_OPTIONS.tempo,
     ...(overrides.tempo || {}),
@@ -80,11 +113,10 @@ export class FeatureExtractor extends BaseModule {
     this._hasSampled = false;
     this._binWidth = 0;
     this._nyquist = 0;
-    this._bandBinRanges = {
-      low: [0, 1],
-      mid: [1, 2],
-      high: [2, 3],
-    };
+    this._bandBinRanges = Object.keys(this.options.bands).reduce((acc, key, index) => {
+      acc[key] = [index, index + 1];
+      return acc;
+    }, {});
     this._tempoState = {
       energyEMA: 0,
       lastBeatTime: 0,
@@ -209,24 +241,28 @@ export class FeatureExtractor extends BaseModule {
     }
 
     const centroidHz = totalEnergy > 0 ? centroidNumerator / totalEnergy : 0;
-    const lowEnergy = this._computeBandEnergy(freqData, this._bandBinRanges.low);
-    const midEnergy = this._computeBandEnergy(freqData, this._bandBinRanges.mid);
-    const highEnergy = this._computeBandEnergy(freqData, this._bandBinRanges.high);
+    const bandFeatures = Object.entries(this._bandBinRanges).reduce((acc, [key, range]) => {
+      acc[key] = this._computeBandEnergy(freqData, range);
+      return acc;
+    }, {});
 
     const rms = this._computeRms(timeData);
     const zeroCrossRate = this._computeZeroCrossRate(timeData);
-    const tempoProxy = this._updateTempo(lowEnergy);
+    const tempoProxy = this._updateTempo(
+      Math.max(
+        bandFeatures.bandBass ?? 0,
+        bandFeatures.bandSub ?? 0,
+      ),
+    );
 
     const nextFeatures = {
       rms,
       specCentroid: clamp01(this._nyquist ? centroidHz / this._nyquist : 0),
       specRolloff: clamp01(this._nyquist ? rolloffFrequency / this._nyquist : 0),
-      bandLow: lowEnergy,
-      bandMid: midEnergy,
-      bandHigh: highEnergy,
       peak: clamp01(peak / 255),
       zeroCrossRate,
       tempoProxy,
+      ...bandFeatures,
     };
 
     FEATURE_KEYS.forEach((key) => {

@@ -1,10 +1,14 @@
 import { BaseModule } from '../core/BaseModule.js';
+import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
 import { serializeModelWeights, applySerializedWeights } from './MLPWeightUtils.js';
 import { PARTICLE_PARAMETER_COUNT } from './MLPTrainingTargets.js';
 import { upgradeModelSnapshot } from './ModelSnapshotUpgrade.js';
 
+const BASE_PARTICLE_DIMS = 8;
+const DEFAULT_INPUT_SIZE = BASE_PARTICLE_DIMS + FEATURE_KEYS.length;
+
 const DEFAULT_CONFIG = {
-  inputSize: 17,
+  inputSize: DEFAULT_INPUT_SIZE,
   outputSize: PARTICLE_PARAMETER_COUNT,
   hiddenLayers: [32],
   activation: 'relu',

@@ -23,6 +23,7 @@ export class Renderer extends BaseModule {
     this.elapsed = 0;
     this.onResize = this.onResize.bind(this);
     this._sceneCenter = new THREE.Vector3();
+    this._cameraZoom = 0;
   }
 
   init() {
@@ -53,6 +54,7 @@ export class Renderer extends BaseModule {
     this.controls.minDistance = 2;
     this.controls.maxDistance = 20;
     this.controls.target.set(0, 0, 0);
+    this._cameraZoom = this.camera.position.distanceTo(this.controls.target);
 
     this.particleField = new ParticleField(this.scene, {
       count: this.options.placeholderCount,
@@ -146,6 +148,37 @@ export class Renderer extends BaseModule {
     this._syncCameraTarget();
   }
 
+  setCameraZoom(distance = this._cameraZoom || 6) {
+    if (!this.camera || !this.controls) {
+      return;
+    }
+    const min = this.controls.minDistance ?? 1;
+    const max = this.controls.maxDistance ?? 50;
+    const clamped = Math.max(min, Math.min(max, distance));
+    const target = this.controls.target.clone();
+    const direction = this.camera.position.clone().sub(target);
+    if (!direction.lengthSq()) {
+      direction.set(0, 0, 1);
+    } else {
+      direction.normalize();
+    }
+    const nextPosition = target.clone().add(direction.multiplyScalar(clamped));
+    this.camera.position.copy(nextPosition);
+    this.camera.updateProjectionMatrix();
+    this._cameraZoom = clamped;
+    this.controls.update();
+  }
+
+  getCameraZoom() {
+    if (Number.isFinite(this._cameraZoom) && this._cameraZoom > 0) {
+      return this._cameraZoom;
+    }
+    if (this.camera && this.controls) {
+      return this.camera.position.distanceTo(this.controls.target);
+    }
+    return 0;
+  }
+
   _syncCameraTarget() {
     if (!this.controls || !this.particleField) {
       return;
@@ -155,6 +188,7 @@ export class Renderer extends BaseModule {
     this.controls.update();
     if (this.camera) {
       this.camera.lookAt(center);
+      this._cameraZoom = this.camera.position.distanceTo(center);
     }
   }
 }

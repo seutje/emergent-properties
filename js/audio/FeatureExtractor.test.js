@@ -1,13 +1,21 @@
 import { describe, expect, it } from '@jest/globals';
 import { FeatureExtractor } from './FeatureExtractor.js';
 
+const TEST_BANDS = {
+  bandSub: [0, 2000],
+  bandBass: [2000, 4000],
+  bandLowMid: [4000, 6000],
+  bandMid: [6000, 9000],
+  bandHigh: [9000, 16000],
+};
+
 describe('FeatureExtractor', () => {
   it('computes normalized feature vectors from analyser data', () => {
     const analyser = createAnalyser({
       fftSize: 32,
       sampleRate: 32000,
       frequency: [
-        0, 100, 0, 0, 200, 0, 0, 0, 0, 0, 0, 50, 0, 0, 0, 0,
+        0, 100, 0, 150, 200, 0, 0, 80, 0, 0, 0, 50, 0, 0, 0, 0,
       ],
       timeDomain: createWaveSamples(32),
     });
@@ -16,21 +24,19 @@ describe('FeatureExtractor', () => {
       sampleRate: 60,
       decimation: { enabled: false },
       smoothing: { enabled: false },
-      bands: {
-        low: [0, 4000],
-        mid: [4000, 9000],
-        high: [9000, 16000],
-      },
+      bands: TEST_BANDS,
     });
 
     const features = extractor.sample(1 / 60);
 
     expect(features.rms).toBeCloseTo(computeExpectedRms(createWaveSamples(32)), 5);
-    expect(features.specCentroid).toBeCloseTo(0.259, 3);
-    expect(features.specRolloff).toBeCloseTo(0.25, 3);
-    expect(features.bandLow).toBeCloseTo(0.098, 2);
-    expect(features.bandMid).toBeCloseTo(0.157, 2);
-    expect(features.bandHigh).toBeCloseTo(0.028, 2);
+    expect(features.specCentroid).toBeCloseTo(0.265, 3);
+    expect(features.specRolloff).toBeCloseTo(0.438, 2);
+    expect(features.bandSub).toBeCloseTo(0.196, 3);
+    expect(features.bandBass).toBeCloseTo(0.294, 3);
+    expect(features.bandLowMid).toBeCloseTo(0.392, 3);
+    expect(features.bandMid).toBeCloseTo(0.105, 3);
+    expect(features.bandHigh).toBeCloseTo(0.028, 3);
     expect(features.peak).toBeCloseTo(200 / 255, 5);
     expect(features.zeroCrossRate).toBeGreaterThan(0.15);
     expect(features.tempoProxy).toBe(0);
@@ -49,14 +55,10 @@ describe('FeatureExtractor', () => {
       sampleRate: 60,
       decimation: { enabled: false },
       smoothing: { enabled: true, alpha: 0.5 },
-      bands: {
-        low: [0, 4000],
-        mid: [4000, 9000],
-        high: [9000, 16000],
-      },
+      bands: TEST_BANDS,
     });
     smoothed.sample(1 / 60);
-    const previousLow = smoothed.getFeatures().bandLow;
+    const previousBass = smoothed.getFeatures().bandBass;
 
     analyser.setFrequencyData(
       Array.from({ length: 16 }, (_, index) => (index < 4 ? 200 : 10)),
@@ -67,17 +69,13 @@ describe('FeatureExtractor', () => {
       sampleRate: 60,
       decimation: { enabled: false },
       smoothing: { enabled: false },
-      bands: {
-        low: [0, 4000],
-        mid: [4000, 9000],
-        high: [9000, 16000],
-      },
+      bands: TEST_BANDS,
     });
     const rawFeatures = raw.sample(1 / 60);
     smoothed.sample(1 / 60);
 
-    const expected = previousLow + 0.5 * (rawFeatures.bandLow - previousLow);
-    expect(smoothed.getFeatures().bandLow).toBeCloseTo(expected, 5);
+    const expected = previousBass + 0.5 * (rawFeatures.bandBass - previousBass);
+    expect(smoothed.getFeatures().bandBass).toBeCloseTo(expected, 5);
   });
 
   it('respects decimation toggles', () => {

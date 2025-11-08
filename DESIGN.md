@@ -110,7 +110,7 @@ These are packed into GPU attributes and/or included in MLP input.
 - `rms` (energy)
 - `specCentroid`
 - `specRolloff`
-- `bandLow`, `bandMid`, `bandHigh` (sum/avg energy in FFT bands)
+- `bandSub`, `bandBass`, `bandLowMid`, `bandMid`, `bandHigh` (sum/avg energy in FFT bands)
 - `peak` (max magnitude)
 - `zeroCrossRate` (approx)
 - `tempoProxy` (EMA of beat peaks) — optional, cheap
@@ -120,9 +120,9 @@ These are packed into GPU attributes and/or included in MLP input.
 **Input vector (concat)**
 ```
 [x, y, z, distOrigin, idHash, phaseSin, phaseCos, prevSpeed,
- rms, centroid, rolloff, low, mid, high, peak, zcr, tempo]
+ rms, centroid, rolloff, sub, bass, lowMid, mid, high, peak, zcr, tempo]
 ```
-(~17–20 dims depending on toggles)
+(~19 dims depending on toggles)
 
 **Output vector**
 ```
@@ -443,4 +443,3 @@ requestAnimationFrame(loop);
 - **Δ**: per-frame change (applied additively or scaled by flicker/time).
 - **Decimation**: running compute at lower-than-render framerate.
 - **EMA**: exponential moving average (feature smoothing).
-

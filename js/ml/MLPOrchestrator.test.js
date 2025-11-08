@@ -6,7 +6,9 @@ describe('deriveReactivity', () => {
   it('boosts gain and reduces blend when audio energy spikes', () => {
     const features = {
       rms: 0.82,
-      bandLow: 0.9,
+      bandSub: 0.85,
+      bandBass: 0.9,
+      bandLowMid: 0.78,
       bandMid: 0.65,
       bandHigh: 0.55,
       peak: 0.97,
@@ -27,7 +29,9 @@ describe('deriveReactivity', () => {
     const prevState = { envelope: 0.6, prevPeak: 0.8 };
     const hotFeatures = {
       rms: 0.75,
-      bandLow: 0.8,
+      bandSub: 0.72,
+      bandBass: 0.8,
+      bandLowMid: 0.7,
       bandMid: 0.6,
       bandHigh: 0.55,
       peak: 0.9,
@@ -37,9 +41,11 @@ describe('deriveReactivity', () => {
 
     const calmFeatures = {
       rms: 0.05,
-      bandLow: 0.05,
-      bandMid: 0.04,
-      bandHigh: 0.03,
+      bandSub: 0.02,
+      bandBass: 0.05,
+      bandLowMid: 0.04,
+      bandMid: 0.03,
+      bandHigh: 0.02,
       peak: 0.04,
       tempoProxy: 0.1,
     };
@@ -66,7 +72,9 @@ describe('deriveReactivity', () => {
     };
     const features = {
       rms: 0.9,
-      bandLow: 0.85,
+      bandSub: 0.82,
+      bandBass: 0.85,
+      bandLowMid: 0.7,
       bandMid: 0.6,
       bandHigh: 0.5,
       peak: 0.95,
@@ -170,7 +178,14 @@ describe('MLPOrchestrator', () => {
       }),
     };
 
-    const orchestrator = new MLPOrchestrator({ model: {}, particleField, featureExtractor: null });
+    const renderer = {
+      zoom: 7,
+      setCameraZoom: jest.fn((value) => {
+        renderer.zoom = value;
+      }),
+      getCameraZoom: jest.fn(() => renderer.zoom),
+    };
+    const orchestrator = new MLPOrchestrator({ model: {}, particleField, featureExtractor: null, renderer });
     orchestrator.attributeHandles = {};
     orchestrator.count = 4;
     orchestrator.outputDims = dims;
@@ -181,6 +196,7 @@ describe('MLPOrchestrator', () => {
     const colorMixIdx = getIndex('colorMix');
     const alphaScaleIdx = getIndex('alphaScale');
     const pointScaleIdx = getIndex('pointScale');
+    const cameraZoomIdx = getIndex('cameraZoom');
     for (let i = 0; i < orchestrator.count; i += 1) {
       const base = i * dims;
       buffer[base + rotationIdx] = 0.5;
@@ -189,6 +205,7 @@ describe('MLPOrchestrator', () => {
       buffer[base + colorMixIdx] = 0.25;
       buffer[base + alphaScaleIdx] = -0.3;
       buffer[base + pointScaleIdx] = 0.4;
+      buffer[base + cameraZoomIdx] = 0.2;
     }
 
     orchestrator._applyOutputs(buffer, { gain: 1, blend: 1, flickerBoost: 1 });
@@ -206,5 +223,7 @@ describe('MLPOrchestrator', () => {
     expect(particleField.options.colorMix).not.toBe(0.8);
     expect(particleField.options.alphaScale).not.toBe(0.9);
     expect(particleField.options.pointScale).toBeGreaterThan(1.2);
+    expect(renderer.setCameraZoom).toHaveBeenCalled();
+    expect(renderer.zoom).not.toBe(7);
   });
 });

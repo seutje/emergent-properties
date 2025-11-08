@@ -88,6 +88,7 @@ async function bootstrap() {
     model: mlpModel,
     particleField,
     featureExtractor,
+    renderer,
     options: {
       rateHz: 24,
       blend: 1,

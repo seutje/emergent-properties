@@ -8,7 +8,9 @@ const FEATURE_LABELS = {
   rms: 'RMS',
   specCentroid: 'Spectral centroid',
   specRolloff: 'Spectral rolloff',
-  bandLow: 'Low band',
+  bandSub: 'Sub',
+  bandBass: 'Bass',
+  bandLowMid: 'Low-mid',
   bandMid: 'Mid band',
   bandHigh: 'High band',
   peak: 'Peak',
@@ -51,6 +53,7 @@ const BUILTIN_PRESETS = [
         colorMix: { min: 0.3, max: 1.2 },
         alphaScale: { min: 0.5, max: 1.4 },
         pointScale: { min: 0.8, max: 2 },
+        cameraZoom: { min: 4.5, max: 9 },
       },
     },
   },
@@ -88,6 +91,7 @@ const BUILTIN_PRESETS = [
         colorMix: { min: 0.4, max: 1.4 },
         alphaScale: { min: 0.6, max: 1.6 },
         pointScale: { min: 1, max: 2.3 },
+        cameraZoom: { min: 3.5, max: 11 },
       },
     },
   },
@@ -125,6 +129,7 @@ const BUILTIN_PRESETS = [
         colorMix: { min: 0.2, max: 0.9 },
         alphaScale: { min: 0.4, max: 1 },
         pointScale: { min: 0.6, max: 1.6 },
+        cameraZoom: { min: 5.5, max: 12 },
       },
     },
   },
@@ -398,6 +403,8 @@ export class UIController extends BaseModule {
       alphaScaleMax: outputs.alphaScale.max,
       pointScaleMin: outputs.pointScale.min,
       pointScaleMax: outputs.pointScale.max,
+      cameraZoomMin: outputs.cameraZoom.min,
+      cameraZoomMax: outputs.cameraZoom.max,
     };
 
     const applyModelUpdate = async () => {
@@ -605,6 +612,20 @@ export class UIController extends BaseModule {
         .onChange((value) => {
           state.pointScaleMax = Math.max(value, state.pointScaleMin + 0.05);
           this.mlpController.updateOutput('pointScale', { max: state.pointScaleMax });
+        }),
+      cameraZoomMin: outputFolder
+        .add(state, 'cameraZoomMin', 2, 15, 0.1)
+        .name('Camera zoom min')
+        .onChange((value) => {
+          state.cameraZoomMin = Math.min(value, state.cameraZoomMax - 0.1);
+          this.mlpController.updateOutput('cameraZoom', { min: state.cameraZoomMin });
+        }),
+      cameraZoomMax: outputFolder
+        .add(state, 'cameraZoomMax', 3, 20, 0.1)
+        .name('Camera zoom max')
+        .onChange((value) => {
+          state.cameraZoomMax = Math.max(value, state.cameraZoomMin + 0.1);
+          this.mlpController.updateOutput('cameraZoom', { max: state.cameraZoomMax });
         }),
     };
 
@@ -866,6 +887,7 @@ export class UIController extends BaseModule {
       colorMix: { min: 'colorMixMin', max: 'colorMixMax' },
       alphaScale: { min: 'alphaScaleMin', max: 'alphaScaleMax' },
       pointScale: { min: 'pointScaleMin', max: 'pointScaleMax' },
+      cameraZoom: { min: 'cameraZoomMin', max: 'cameraZoomMax' },
     };
     return map[key]?.[axis] || null;
   }

@@ -7,16 +7,38 @@ const OUTPUT_INDEX = PARTICLE_PARAMETER_TARGETS.reduce((acc, target) => {
   return acc;
 }, {});
 
-const GLOBAL_OUTPUT_SETTERS = {
-  rotationSpeed: 'setRotationSpeed',
-  wobbleStrength: 'setWobbleStrength',
-  wobbleFrequency: 'setWobbleFrequency',
-  colorMix: 'setColorMix',
-  alphaScale: 'setAlphaScale',
-  pointScale: 'setPointScale',
+const GLOBAL_OUTPUT_BINDINGS = {
+  rotationSpeed: {
+    read: (ctx) => ctx.particleField?.options?.rotationSpeed ?? 0,
+    write: (ctx, value) => ctx.particleField?.setRotationSpeed?.(value),
+  },
+  wobbleStrength: {
+    read: (ctx) => ctx.particleField?.options?.wobbleStrength ?? 0,
+    write: (ctx, value) => ctx.particleField?.setWobbleStrength?.(value),
+  },
+  wobbleFrequency: {
+    read: (ctx) => ctx.particleField?.options?.wobbleFrequency ?? 0,
+    write: (ctx, value) => ctx.particleField?.setWobbleFrequency?.(value),
+  },
+  colorMix: {
+    read: (ctx) => ctx.particleField?.options?.colorMix ?? 0,
+    write: (ctx, value) => ctx.particleField?.setColorMix?.(value),
+  },
+  alphaScale: {
+    read: (ctx) => ctx.particleField?.options?.alphaScale ?? 0,
+    write: (ctx, value) => ctx.particleField?.setAlphaScale?.(value),
+  },
+  pointScale: {
+    read: (ctx) => ctx.particleField?.options?.pointScale ?? 0,
+    write: (ctx, value) => ctx.particleField?.setPointScale?.(value),
+  },
+  cameraZoom: {
+    read: (ctx) => ctx.renderer?.getCameraZoom?.() ?? 0,
+    write: (ctx, value) => ctx.renderer?.setCameraZoom?.(value),
+  },
 };
 
-const GLOBAL_OUTPUT_KEYS = Object.keys(GLOBAL_OUTPUT_SETTERS);
+const GLOBAL_OUTPUT_KEYS = Object.keys(GLOBAL_OUTPUT_BINDINGS);
 
 const DEFAULT_OUTPUTS = {
   deltaPos: { x: 1.25, y: 1.6, z: 0.45 },
@@ -30,6 +52,7 @@ const DEFAULT_OUTPUTS = {
   colorMix: { min: 0.25, max: 1.4 },
   alphaScale: { min: 0.4, max: 1.6 },
   pointScale: { min: 0.75, max: 2.35 },
+  cameraZoom: { min: 3, max: 12 },
 };
 
 export const DEFAULT_REACTIVITY = {
@@ -62,13 +85,21 @@ export function deriveReactivity(features = {}, prevState = {}, options = DEFAUL
     prevPeak: clamp01(prevState?.prevPeak ?? 0),
   };
   const rms = clamp01(features.rms ?? 0);
-  const low = clamp01(features.bandLow ?? 0);
+  const sub = clamp01(features.bandSub ?? 0);
+  const bass = clamp01(features.bandBass ?? 0);
+  const lowMid = clamp01(features.bandLowMid ?? 0);
   const mid = clamp01(features.bandMid ?? 0);
   const high = clamp01(features.bandHigh ?? 0);
   const peak = clamp01(features.peak ?? 0);
   const tempo = clamp01(features.tempoProxy ?? 0);
 
-  const drive = clamp01(rms * 0.45 + low * 0.3 + mid * 0.15 + high * 0.1 + tempo * 0.12);
+  const weightedBands =
+    sub * 0.2 +
+    bass * 0.25 +
+    lowMid * 0.2 +
+    mid * 0.15 +
+    high * 0.1;
+  const drive = clamp01(rms * 0.35 + weightedBands + tempo * 0.12);
   const transient = Math.max(0, peak - prev.prevPeak) * 0.5;
   const target = clamp01(drive + transient);
   const attack = clamp(opts.attack ?? DEFAULT_REACTIVITY.attack, 0.01, 1);
@@ -104,11 +135,12 @@ export function deriveReactivity(features = {}, prevState = {}, options = DEFAUL
 }
 
 export class MLPOrchestrator extends BaseModule {
-  constructor({ model, particleField, featureExtractor, options = {} } = {}) {
+  constructor({ model, particleField, featureExtractor, renderer = null, options = {} } = {}) {
     super('MLPOrchestrator');
     this.model = model;
     this.particleField = particleField;
     this.featureExtractor = featureExtractor;
+    this.renderer = renderer;
     this.options = {
       enabled: true,
       rateHz: 24,
@@ -507,23 +539,27 @@ export class MLPOrchestrator extends BaseModule {
   }
 
   _readGlobalValue(key) {
-    const field = this.particleField;
-    if (!field?.options) {
-      return 0;
+    const binding = GLOBAL_OUTPUT_BINDINGS[key];
+    if (binding?.read) {
+      const value = binding.read(this);
+      if (Number.isFinite(value)) {
+        return value;
+      }
     }
-    return field.options[key] ?? 0;
+    if (this.particleField?.options && Object.prototype.hasOwnProperty.call(this.particleField.options, key)) {
+      return this.particleField.options[key];
+    }
+    return 0;
   }
 
   _writeGlobalValue(key, value) {
-    const field = this.particleField;
-    if (!field) {
+    const binding = GLOBAL_OUTPUT_BINDINGS[key];
+    if (binding?.write) {
+      binding.write(this, value);
       return;
     }
-    const method = GLOBAL_OUTPUT_SETTERS[key];
-    if (method && typeof field[method] === 'function') {
-      field[method](value);
-    } else if (field.options) {
-      field.options[key] = value;
+    if (this.particleField?.options) {
+      this.particleField.options[key] = value;
     }
   }
 }

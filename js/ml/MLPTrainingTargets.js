@@ -14,6 +14,7 @@ export const PARTICLE_PARAMETER_TARGETS = [
   { id: 'colorMix', label: 'Color Mix', outputIndex: 12, group: 'colorMix', scope: 'global' },
   { id: 'alphaScale', label: 'Alpha Scale', outputIndex: 13, group: 'alphaScale', scope: 'global' },
   { id: 'pointScale', label: 'Point Scale', outputIndex: 14, group: 'pointScale', scope: 'global' },
+  { id: 'cameraZoom', label: 'Camera Zoom', outputIndex: 15, group: 'cameraZoom', scope: 'global' },
 ];
 
 export const getParticleParameterTarget = (id) =>

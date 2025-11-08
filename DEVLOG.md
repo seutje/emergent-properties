@@ -80,3 +80,12 @@
 - Expanded the MLP output schema + training target list to cover rotation speed, wobble strength/frequency, color mix, alpha scale, and point scale, and added a snapshot upgrader that pads legacy weights/correlations so older presets load cleanly.
 - Wired those new outputs through `MLPOrchestrator`, letting the model drive ParticleField rotation/wobble/uniforms, and surfaced matching clamp controls inside lil-gui + built-in presets for save/load parity.
 - Added Jest coverage for the snapshot upgrade path and the new global modulation behavior, and ran the full Jest suite to keep everything green.
+
+## 2025-11-08
+- Let the MLP steer camera zoom: added a `cameraZoom` training target with default clamps, renderer-level zoom setters/getters, and wiring through `MLPOrchestrator` so global outputs now include orbit distance.
+- Updated lil-gui presets/state so camera zoom clamps save/load alongside other outputs, refreshed the snapshot upgrader’s correlations, and extended the orchestrator/unit tests; full Jest suite remains green.
+
+## 2025-11-09
+- Split the feature extractor’s low/mid spectrum bands into `bandSub`, `bandBass`, `bandLowMid`, `bandMid`, and `bandHigh`, updated the GUI labels + reactivity logic to use the richer feature set, and tuned the band defaults so tempo detection still keys off sub/bass energy.
+- Augmented the snapshot upgrader to remap legacy `bandLow` correlations, pad kernels when the stored input size lags behind the new 19-dim vector, and refreshed the curated default snapshot metadata so presets reference the new band names.
+- Backfilled Jest coverage across `FeatureExtractor`, `MLPOrchestrator`, and `ModelSnapshotUpgrade` to lock down the new behavior and ran those suites via `npm test -- js/audio/FeatureExtractor.test.js js/ml/MLPOrchestrator.test.js js/ml/ModelSnapshotUpgrade.test.js`.

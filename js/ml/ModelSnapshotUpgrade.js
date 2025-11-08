@@ -1,13 +1,23 @@
 import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
 import { PARTICLE_PARAMETER_COUNT, PARTICLE_PARAMETER_TARGETS } from './MLPTrainingTargets.js';
 
+const BASE_PARTICLE_DIMS = 8;
+const REQUIRED_INPUT_SIZE = BASE_PARTICLE_DIMS + FEATURE_KEYS.length;
+
+const FEATURE_KEY_MIGRATIONS = {
+  bandLow: 'bandBass',
+  bandMid: 'bandMid',
+  bandHigh: 'bandHigh',
+};
+
 const GLOBAL_CORRELATION_SEEDS = [
   { featureKey: 'tempoProxy', targetId: 'rotationSpeed', strength: 0.65 },
-  { featureKey: 'bandLow', targetId: 'wobbleStrength', strength: 0.6 },
+  { featureKey: 'bandBass', targetId: 'wobbleStrength', strength: 0.6 },
   { featureKey: 'bandHigh', targetId: 'wobbleFrequency', strength: 0.6 },
   { featureKey: 'specCentroid', targetId: 'colorMix', strength: 0.55 },
   { featureKey: 'rms', targetId: 'alphaScale', strength: 0.5 },
   { featureKey: 'peak', targetId: 'pointScale', strength: 0.55 },
+  { featureKey: 'bandLowMid', targetId: 'cameraZoom', strength: 0.6 },
 ];
 
 export function upgradeModelSnapshot(snapshot) {
@@ -20,6 +30,11 @@ export function upgradeModelSnapshot(snapshot) {
   if (currentOutputs < requiredOutputs) {
     padOutputWeights(snapshot, currentOutputs, requiredOutputs);
     snapshot.config.outputSize = requiredOutputs;
+  }
+  const currentInputs = Number(snapshot.config.inputSize) || REQUIRED_INPUT_SIZE;
+  if (currentInputs < REQUIRED_INPUT_SIZE) {
+    padInputWeights(snapshot, currentInputs, REQUIRED_INPUT_SIZE);
+    snapshot.config.inputSize = REQUIRED_INPUT_SIZE;
   }
   snapshot.metadata = snapshot.metadata || {};
   snapshot.metadata.correlations = mergeRuntimeCorrelations(snapshot.metadata.correlations);
@@ -63,9 +78,65 @@ function padOutputWeights(snapshot, oldSize, newSize) {
   });
 }
 
+function padInputWeights(snapshot, oldSize, newSize) {
+  const diff = newSize - oldSize;
+  if (!Array.isArray(snapshot.weights) || diff <= 0) {
+    return;
+  }
+  snapshot.weights.forEach((entry) => {
+    if (!entry || !Array.isArray(entry.shape) || !Array.isArray(entry.values)) {
+      return;
+    }
+    if (entry.shape.length === 2 && entry.shape[0] === oldSize) {
+      const cols = entry.shape[1];
+      const next = new Array(newSize * cols).fill(0);
+      for (let row = 0; row < oldSize; row += 1) {
+        const srcOffset = row * cols;
+        const dstOffset = row * cols;
+        for (let col = 0; col < cols; col += 1) {
+          next[dstOffset + col] = entry.values[srcOffset + col];
+        }
+      }
+      entry.shape[0] = newSize;
+      entry.values = next;
+    }
+  });
+}
+
+const normalizeFeatureKey = (key) => {
+  if (!key || typeof key !== 'string') {
+    return null;
+  }
+  const mapped = FEATURE_KEY_MIGRATIONS[key] || key;
+  return FEATURE_KEYS.includes(mapped) ? mapped : null;
+};
+
+const mapCorrelationFeatureKey = (entry, { includeIndex = false } = {}) => {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const featureKey = normalizeFeatureKey(entry.featureKey);
+  if (!featureKey) {
+    return null;
+  }
+  const next = { ...entry, featureKey };
+  if (includeIndex) {
+    next.featureIndex = Math.max(0, FEATURE_KEYS.indexOf(featureKey));
+  }
+  return next;
+};
+
 function mergeRuntimeCorrelations(list = []) {
-  const result = Array.isArray(list) ? list.map((entry) => ({ ...entry })) : [];
-  const seen = new Set(result.map((entry) => entry.targetId));
+  const result = [];
+  const seen = new Set();
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const normalized = mapCorrelationFeatureKey(entry, { includeIndex: true });
+    if (!normalized) {
+      return;
+    }
+    result.push(normalized);
+    seen.add(normalized.targetId);
+  });
   GLOBAL_CORRELATION_SEEDS.forEach((seed) => {
     if (seen.has(seed.targetId)) {
       return;
@@ -91,8 +162,16 @@ function mergeRuntimeCorrelations(list = []) {
 }
 
 function mergeTrainingCorrelations(list = []) {
-  const result = Array.isArray(list) ? list.map((entry) => ({ ...entry })) : [];
-  const seen = new Set(result.map((entry) => entry.targetId));
+  const result = [];
+  const seen = new Set();
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const normalized = mapCorrelationFeatureKey(entry);
+    if (!normalized) {
+      return;
+    }
+    result.push(normalized);
+    seen.add(normalized.targetId);
+  });
   GLOBAL_CORRELATION_SEEDS.forEach((seed) => {
     if (seen.has(seed.targetId)) {
       return;
