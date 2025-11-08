@@ -1,5 +1,6 @@
 import { jest } from '@jest/globals';
 import { DEFAULT_REACTIVITY, deriveReactivity, MLPOrchestrator } from './MLPOrchestrator.js';
+import { PARTICLE_PARAMETER_TARGETS } from './MLPTrainingTargets.js';
 
 describe('deriveReactivity', () => {
   it('boosts gain and reduces blend when audio energy spikes', () => {
@@ -134,5 +135,76 @@ describe('MLPOrchestrator', () => {
     expect(orchestrator.baseFlickerRate).toEqual(new Float32Array([0.2, 0.8]));
     expect(orchestrator.baseFlickerDepth).toEqual(new Float32Array([0.05, 0.25]));
     expect(orchestrator._tf.tensor2d).toHaveBeenLastCalledWith(expect.any(Float32Array), [2, orchestrator.baseDims]);
+  });
+
+  it('aggregates global outputs back into particle field controls', () => {
+    const dims = PARTICLE_PARAMETER_TARGETS.length;
+    const getIndex = (id) =>
+      PARTICLE_PARAMETER_TARGETS.find((target) => target.id === id)?.outputIndex ?? -1;
+    const particleField = {
+      options: {
+        rotationSpeed: 0.05,
+        wobbleStrength: 0.02,
+        wobbleFrequency: 0.2,
+        colorMix: 0.8,
+        alphaScale: 0.9,
+        pointScale: 1.2,
+      },
+      setRotationSpeed: jest.fn((value) => {
+        particleField.options.rotationSpeed = value;
+      }),
+      setWobbleStrength: jest.fn((value) => {
+        particleField.options.wobbleStrength = value;
+      }),
+      setWobbleFrequency: jest.fn((value) => {
+        particleField.options.wobbleFrequency = value;
+      }),
+      setColorMix: jest.fn((value) => {
+        particleField.options.colorMix = value;
+      }),
+      setAlphaScale: jest.fn((value) => {
+        particleField.options.alphaScale = value;
+      }),
+      setPointScale: jest.fn((value) => {
+        particleField.options.pointScale = value;
+      }),
+    };
+
+    const orchestrator = new MLPOrchestrator({ model: {}, particleField, featureExtractor: null });
+    orchestrator.attributeHandles = {};
+    orchestrator.count = 4;
+    orchestrator.outputDims = dims;
+    const buffer = new Float32Array(orchestrator.count * dims);
+    const rotationIdx = getIndex('rotationSpeed');
+    const wobbleStrengthIdx = getIndex('wobbleStrength');
+    const wobbleFrequencyIdx = getIndex('wobbleFrequency');
+    const colorMixIdx = getIndex('colorMix');
+    const alphaScaleIdx = getIndex('alphaScale');
+    const pointScaleIdx = getIndex('pointScale');
+    for (let i = 0; i < orchestrator.count; i += 1) {
+      const base = i * dims;
+      buffer[base + rotationIdx] = 0.5;
+      buffer[base + wobbleStrengthIdx] = -0.2;
+      buffer[base + wobbleFrequencyIdx] = 0.1 * i;
+      buffer[base + colorMixIdx] = 0.25;
+      buffer[base + alphaScaleIdx] = -0.3;
+      buffer[base + pointScaleIdx] = 0.4;
+    }
+
+    orchestrator._applyOutputs(buffer, { gain: 1, blend: 1, flickerBoost: 1 });
+
+    expect(particleField.setRotationSpeed).toHaveBeenCalled();
+    expect(particleField.setWobbleStrength).toHaveBeenCalled();
+    expect(particleField.setWobbleFrequency).toHaveBeenCalled();
+    expect(particleField.setColorMix).toHaveBeenCalled();
+    expect(particleField.setAlphaScale).toHaveBeenCalled();
+    expect(particleField.setPointScale).toHaveBeenCalled();
+
+    expect(particleField.options.rotationSpeed).toBeGreaterThan(0.05);
+    expect(particleField.options.wobbleStrength).toBeGreaterThanOrEqual(0);
+    expect(particleField.options.wobbleFrequency).not.toBe(0.2);
+    expect(particleField.options.colorMix).not.toBe(0.8);
+    expect(particleField.options.alphaScale).not.toBe(0.9);
+    expect(particleField.options.pointScale).toBeGreaterThan(1.2);
   });
 });

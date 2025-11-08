@@ -45,6 +45,12 @@ const BUILTIN_PRESETS = [
         color: { min: -0.2, max: 0.4 },
         flickerRate: { min: 0.2, max: 2.5 },
         flickerDepth: { min: 0.05, max: 0.4 },
+        rotationSpeed: { min: 0.01, max: 0.18 },
+        wobbleStrength: { min: 0, max: 0.2 },
+        wobbleFrequency: { min: 0.05, max: 0.8 },
+        colorMix: { min: 0.3, max: 1.2 },
+        alphaScale: { min: 0.5, max: 1.4 },
+        pointScale: { min: 0.8, max: 2 },
       },
     },
   },
@@ -76,6 +82,12 @@ const BUILTIN_PRESETS = [
         color: { min: -0.35, max: 0.6 },
         flickerRate: { min: 0.35, max: 4.8 },
         flickerDepth: { min: 0.1, max: 0.65 },
+        rotationSpeed: { min: 0.05, max: 0.3 },
+        wobbleStrength: { min: 0, max: 0.3 },
+        wobbleFrequency: { min: 0.1, max: 1.1 },
+        colorMix: { min: 0.4, max: 1.4 },
+        alphaScale: { min: 0.6, max: 1.6 },
+        pointScale: { min: 1, max: 2.3 },
       },
     },
   },
@@ -107,6 +119,12 @@ const BUILTIN_PRESETS = [
         color: { min: -0.1, max: 0.2 },
         flickerRate: { min: 0.15, max: 1.5 },
         flickerDepth: { min: 0.02, max: 0.25 },
+        rotationSpeed: { min: 0, max: 0.08 },
+        wobbleStrength: { min: 0, max: 0.12 },
+        wobbleFrequency: { min: 0.02, max: 0.45 },
+        colorMix: { min: 0.2, max: 0.9 },
+        alphaScale: { min: 0.4, max: 1 },
+        pointScale: { min: 0.6, max: 1.6 },
       },
     },
   },
@@ -368,6 +386,18 @@ export class UIController extends BaseModule {
       flickerRateMax: outputs.flickerRate.max,
       flickerDepthMin: outputs.flickerDepth.min,
       flickerDepthMax: outputs.flickerDepth.max,
+      rotationSpeedMin: outputs.rotationSpeed.min,
+      rotationSpeedMax: outputs.rotationSpeed.max,
+      wobbleStrengthMin: outputs.wobbleStrength.min,
+      wobbleStrengthMax: outputs.wobbleStrength.max,
+      wobbleFrequencyMin: outputs.wobbleFrequency.min,
+      wobbleFrequencyMax: outputs.wobbleFrequency.max,
+      colorMixMin: outputs.colorMix.min,
+      colorMixMax: outputs.colorMix.max,
+      alphaScaleMin: outputs.alphaScale.min,
+      alphaScaleMax: outputs.alphaScale.max,
+      pointScaleMin: outputs.pointScale.min,
+      pointScaleMax: outputs.pointScale.max,
     };
 
     const applyModelUpdate = async () => {
@@ -491,6 +521,90 @@ export class UIController extends BaseModule {
         .onChange((value) => {
           state.flickerDepthMax = Math.max(value, state.flickerDepthMin + 0.01);
           this.mlpController.updateOutput('flickerDepth', { max: state.flickerDepthMax });
+        }),
+      rotationSpeedMin: outputFolder
+        .add(state, 'rotationSpeedMin', 0, 0.4, 0.005)
+        .name('Rotation speed min')
+        .onChange((value) => {
+          state.rotationSpeedMin = Math.min(value, state.rotationSpeedMax - 0.005);
+          this.mlpController.updateOutput('rotationSpeed', { min: state.rotationSpeedMin });
+        }),
+      rotationSpeedMax: outputFolder
+        .add(state, 'rotationSpeedMax', 0.01, 0.4, 0.005)
+        .name('Rotation speed max')
+        .onChange((value) => {
+          state.rotationSpeedMax = Math.max(value, state.rotationSpeedMin + 0.005);
+          this.mlpController.updateOutput('rotationSpeed', { max: state.rotationSpeedMax });
+        }),
+      wobbleStrengthMin: outputFolder
+        .add(state, 'wobbleStrengthMin', 0, 0.4, 0.01)
+        .name('Wobble strength min')
+        .onChange((value) => {
+          state.wobbleStrengthMin = Math.min(value, state.wobbleStrengthMax - 0.01);
+          this.mlpController.updateOutput('wobbleStrength', { min: state.wobbleStrengthMin });
+        }),
+      wobbleStrengthMax: outputFolder
+        .add(state, 'wobbleStrengthMax', 0.01, 0.4, 0.01)
+        .name('Wobble strength max')
+        .onChange((value) => {
+          state.wobbleStrengthMax = Math.max(value, state.wobbleStrengthMin + 0.01);
+          this.mlpController.updateOutput('wobbleStrength', { max: state.wobbleStrengthMax });
+        }),
+      wobbleFrequencyMin: outputFolder
+        .add(state, 'wobbleFrequencyMin', 0, 1.2, 0.01)
+        .name('Wobble frequency min')
+        .onChange((value) => {
+          state.wobbleFrequencyMin = Math.min(value, state.wobbleFrequencyMax - 0.01);
+          this.mlpController.updateOutput('wobbleFrequency', { min: state.wobbleFrequencyMin });
+        }),
+      wobbleFrequencyMax: outputFolder
+        .add(state, 'wobbleFrequencyMax', 0.01, 1.2, 0.01)
+        .name('Wobble frequency max')
+        .onChange((value) => {
+          state.wobbleFrequencyMax = Math.max(value, state.wobbleFrequencyMin + 0.01);
+          this.mlpController.updateOutput('wobbleFrequency', { max: state.wobbleFrequencyMax });
+        }),
+      colorMixMin: outputFolder
+        .add(state, 'colorMixMin', 0.1, 1.4, 0.01)
+        .name('Color mix min')
+        .onChange((value) => {
+          state.colorMixMin = Math.min(value, state.colorMixMax - 0.01);
+          this.mlpController.updateOutput('colorMix', { min: state.colorMixMin });
+        }),
+      colorMixMax: outputFolder
+        .add(state, 'colorMixMax', 0.2, 1.5, 0.01)
+        .name('Color mix max')
+        .onChange((value) => {
+          state.colorMixMax = Math.max(value, state.colorMixMin + 0.01);
+          this.mlpController.updateOutput('colorMix', { max: state.colorMixMax });
+        }),
+      alphaScaleMin: outputFolder
+        .add(state, 'alphaScaleMin', 0.2, 1.8, 0.01)
+        .name('Alpha scale min')
+        .onChange((value) => {
+          state.alphaScaleMin = Math.min(value, state.alphaScaleMax - 0.01);
+          this.mlpController.updateOutput('alphaScale', { min: state.alphaScaleMin });
+        }),
+      alphaScaleMax: outputFolder
+        .add(state, 'alphaScaleMax', 0.3, 1.9, 0.01)
+        .name('Alpha scale max')
+        .onChange((value) => {
+          state.alphaScaleMax = Math.max(value, state.alphaScaleMin + 0.01);
+          this.mlpController.updateOutput('alphaScale', { max: state.alphaScaleMax });
+        }),
+      pointScaleMin: outputFolder
+        .add(state, 'pointScaleMin', 0.4, 2.5, 0.05)
+        .name('Point scale min')
+        .onChange((value) => {
+          state.pointScaleMin = Math.min(value, state.pointScaleMax - 0.05);
+          this.mlpController.updateOutput('pointScale', { min: state.pointScaleMin });
+        }),
+      pointScaleMax: outputFolder
+        .add(state, 'pointScaleMax', 0.5, 3, 0.05)
+        .name('Point scale max')
+        .onChange((value) => {
+          state.pointScaleMax = Math.max(value, state.pointScaleMin + 0.05);
+          this.mlpController.updateOutput('pointScale', { max: state.pointScaleMax });
         }),
     };
 
@@ -746,6 +860,12 @@ export class UIController extends BaseModule {
       color: { min: 'colorMin', max: 'colorMax' },
       flickerRate: { min: 'flickerRateMin', max: 'flickerRateMax' },
       flickerDepth: { min: 'flickerDepthMin', max: 'flickerDepthMax' },
+      rotationSpeed: { min: 'rotationSpeedMin', max: 'rotationSpeedMax' },
+      wobbleStrength: { min: 'wobbleStrengthMin', max: 'wobbleStrengthMax' },
+      wobbleFrequency: { min: 'wobbleFrequencyMin', max: 'wobbleFrequencyMax' },
+      colorMix: { min: 'colorMixMin', max: 'colorMixMax' },
+      alphaScale: { min: 'alphaScaleMin', max: 'alphaScaleMax' },
+      pointScale: { min: 'pointScaleMin', max: 'pointScaleMax' },
     };
     return map[key]?.[axis] || null;
   }

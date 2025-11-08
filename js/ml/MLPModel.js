@@ -1,9 +1,11 @@
 import { BaseModule } from '../core/BaseModule.js';
 import { serializeModelWeights, applySerializedWeights } from './MLPWeightUtils.js';
+import { PARTICLE_PARAMETER_COUNT } from './MLPTrainingTargets.js';
+import { upgradeModelSnapshot } from './ModelSnapshotUpgrade.js';
 
 const DEFAULT_CONFIG = {
   inputSize: 17,
-  outputSize: 9,
+  outputSize: PARTICLE_PARAMETER_COUNT,
   hiddenLayers: [32],
   activation: 'relu',
   outputActivation: 'tanh',
@@ -130,10 +132,11 @@ export class MLPModel extends BaseModule {
     if (!snapshot || !snapshot.weights) {
       throw new Error('[MLPModel] Invalid model snapshot.');
     }
-    const config = snapshot.config || this.getConfig();
+    const upgraded = upgradeModelSnapshot({ ...snapshot });
+    const config = upgraded.config || this.getConfig();
     await this.rebuild(config);
-    await this.applyWeights(snapshot.weights);
-    return snapshot.metadata || null;
+    await this.applyWeights(upgraded.weights);
+    return upgraded.metadata || null;
   }
 
   async _ensureTensorFlow() {

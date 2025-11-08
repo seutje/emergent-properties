@@ -6,6 +6,8 @@ import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
 import { MLPTrainingManager } from './ml/MLPTrainingManager.js';
 import { loadDefaultModelSnapshot } from './ml/ModelSnapshotLoader.js';
 import { UIController } from './ui/UIController.js';
+import { PARTICLE_PARAMETER_COUNT } from './ml/MLPTrainingTargets.js';
+import { upgradeModelSnapshot } from './ml/ModelSnapshotUpgrade.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -20,9 +22,11 @@ const BUNDLED_TRACKS = [
   { id: 'track-10', title: 'Recursive Dreams', url: './assets/audio/10 - Recursive Dreams.mp3' },
 ];
 
+const BASE_PARTICLE_DIMS = 8;
+
 const FALLBACK_MLP_CONFIG = {
-  inputSize: 17,
-  outputSize: 9,
+  inputSize: BASE_PARTICLE_DIMS + FEATURE_KEYS.length,
+  outputSize: PARTICLE_PARAMETER_COUNT,
   hiddenLayers: [32],
   backend: 'webgl',
   activation: 'relu',
@@ -171,7 +175,8 @@ async function bootstrap() {
 
 async function loadInitialModelSnapshot() {
   try {
-    return await loadDefaultModelSnapshot();
+    const snapshot = await loadDefaultModelSnapshot();
+    return upgradeModelSnapshot(snapshot);
   } catch (error) {
     console.warn('[main] Unable to load default model snapshot.', error);
     return null;

@@ -1,5 +1,22 @@
 import { BaseModule } from '../core/BaseModule.js';
 import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
+import { PARTICLE_PARAMETER_TARGETS } from './MLPTrainingTargets.js';
+
+const OUTPUT_INDEX = PARTICLE_PARAMETER_TARGETS.reduce((acc, target) => {
+  acc[target.id] = target.outputIndex;
+  return acc;
+}, {});
+
+const GLOBAL_OUTPUT_SETTERS = {
+  rotationSpeed: 'setRotationSpeed',
+  wobbleStrength: 'setWobbleStrength',
+  wobbleFrequency: 'setWobbleFrequency',
+  colorMix: 'setColorMix',
+  alphaScale: 'setAlphaScale',
+  pointScale: 'setPointScale',
+};
+
+const GLOBAL_OUTPUT_KEYS = Object.keys(GLOBAL_OUTPUT_SETTERS);
 
 const DEFAULT_OUTPUTS = {
   deltaPos: { x: 1.25, y: 1.6, z: 0.45 },
@@ -7,6 +24,12 @@ const DEFAULT_OUTPUTS = {
   color: { min: -0.91, max: 0.99 },
   flickerRate: { min: 0.25, max: 7.55 },
   flickerDepth: { min: 0.06, max: 0.84 },
+  rotationSpeed: { min: 0.005, max: 0.22 },
+  wobbleStrength: { min: 0, max: 0.25 },
+  wobbleFrequency: { min: 0.05, max: 0.95 },
+  colorMix: { min: 0.25, max: 1.4 },
+  alphaScale: { min: 0.4, max: 1.6 },
+  pointScale: { min: 0.75, max: 2.35 },
 };
 
 export const DEFAULT_REACTIVITY = {
@@ -99,7 +122,7 @@ export class MLPOrchestrator extends BaseModule {
     this.baseDims = 8;
     this.audioDims = FEATURE_KEYS.length;
     this.totalInputSize = this.baseDims + this.audioDims;
-    this.outputDims = 9;
+    this.outputDims = PARTICLE_PARAMETER_TARGETS.length;
     this.interval = 1 / this.options.rateHz;
     this.accumulator = 0;
     this._pending = null;
@@ -330,6 +353,13 @@ export class MLPOrchestrator extends BaseModule {
     const flickerBoost = clamp(modifiers?.flickerBoost ?? 1, 0.5, 4);
     const blend = clamp(modifiers?.blend ?? this.options.blend, 0, 1);
     const outputs = this.options.outputs;
+    const activeGlobalKeys = GLOBAL_OUTPUT_KEYS.filter(
+      (key) => typeof OUTPUT_INDEX[key] === 'number' && OUTPUT_INDEX[key] < this.outputDims,
+    );
+    const globalAccum = activeGlobalKeys.reduce((acc, key) => {
+      acc[key] = 0;
+      return acc;
+    }, {});
 
     for (let i = 0; i < this.count; i += 1) {
       const baseIndex = i * this.outputDims;
@@ -404,6 +434,13 @@ export class MLPOrchestrator extends BaseModule {
         const base = this.baseFlickerDepth ? this.baseFlickerDepth[i] : 0.2;
         flickerDepth.array[i] = lerp(base, mapped, blend);
       }
+
+      activeGlobalKeys.forEach((key) => {
+        const index = OUTPUT_INDEX[key];
+        if (typeof index === 'number') {
+          globalAccum[key] += buffer[baseIndex + index];
+        }
+      });
     }
 
     deltaPos?.markNeedsUpdate();
@@ -411,6 +448,9 @@ export class MLPOrchestrator extends BaseModule {
     colorDelta?.markNeedsUpdate();
     flickerRate?.markNeedsUpdate();
     flickerDepth?.markNeedsUpdate();
+    if (activeGlobalKeys.length) {
+      this._applyGlobalOutputs(globalAccum, blend);
+    }
   }
 
   getBaseSamples(sampleCount = 512) {
@@ -437,5 +477,53 @@ export class MLPOrchestrator extends BaseModule {
       count: clamped,
       dims: this.baseDims,
     };
+  }
+
+  _applyGlobalOutputs(accum = {}, blend = 1) {
+    if (!this.particleField || !accum) {
+      return;
+    }
+    const outputs = this.options.outputs;
+    const divisor = Math.max(1, this.count);
+    GLOBAL_OUTPUT_KEYS.forEach((key) => {
+      const index = OUTPUT_INDEX[key];
+      if (typeof index !== 'number' || index >= this.outputDims) {
+        return;
+      }
+      const range = outputs[key];
+      if (!range) {
+        return;
+      }
+      const sum = accum[key];
+      if (!Number.isFinite(sum)) {
+        return;
+      }
+      const normalized = clamp(sum / divisor, -1, 1);
+      const mapped = mapMinusOneToOne(normalized, range.min, range.max);
+      const current = this._readGlobalValue(key);
+      const next = lerp(current, mapped, blend);
+      this._writeGlobalValue(key, next);
+    });
+  }
+
+  _readGlobalValue(key) {
+    const field = this.particleField;
+    if (!field?.options) {
+      return 0;
+    }
+    return field.options[key] ?? 0;
+  }
+
+  _writeGlobalValue(key, value) {
+    const field = this.particleField;
+    if (!field) {
+      return;
+    }
+    const method = GLOBAL_OUTPUT_SETTERS[key];
+    if (method && typeof field[method] === 'function') {
+      field[method](value);
+    } else if (field.options) {
+      field.options[key] = value;
+    }
   }
 }

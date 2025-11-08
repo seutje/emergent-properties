@@ -75,3 +75,8 @@
 
 ## 2025-11-08
 - Set the lil-gui controller to initialize in a closed state (with an opt-out flag) so first impressions stay focused on the scene while still letting power users pop the panel open when needed.
+
+## 2025-11-08
+- Expanded the MLP output schema + training target list to cover rotation speed, wobble strength/frequency, color mix, alpha scale, and point scale, and added a snapshot upgrader that pads legacy weights/correlations so older presets load cleanly.
+- Wired those new outputs through `MLPOrchestrator`, letting the model drive ParticleField rotation/wobble/uniforms, and surfaced matching clamp controls inside lil-gui + built-in presets for save/load parity.
+- Added Jest coverage for the snapshot upgrade path and the new global modulation behavior, and ran the full Jest suite to keep everything green.
