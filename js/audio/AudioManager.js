@@ -381,8 +381,13 @@ export class AudioManager extends BaseModule {
       source: meta.source ?? 'bundled',
     };
 
+    const payload = {
+      track: currentTrack,
+      offset,
+      isResume: offset > 0,
+    };
     this._updateState({ playing: true, currentTrack });
-    this.emit(AudioManagerEvents.TRACK_LOADED, { track: currentTrack });
+    this.emit(AudioManagerEvents.TRACK_LOADED, payload);
     return currentTrack;
   }
 
@@ -528,10 +533,14 @@ export class AudioManager extends BaseModule {
       return;
     }
     const currentIndex = tracks.findIndex((item) => item.id === track.id);
-    if (currentIndex < 0 || currentIndex + 1 >= tracks.length) {
+    if (currentIndex < 0) {
       return;
     }
-    const nextTrack = tracks[currentIndex + 1];
+    const nextIndex = (currentIndex + 1) % tracks.length;
+    if (nextIndex === currentIndex) {
+      return;
+    }
+    const nextTrack = tracks[nextIndex];
     if (!nextTrack) {
       return;
     }

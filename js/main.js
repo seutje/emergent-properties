@@ -9,6 +9,7 @@ import { UIController } from './ui/UIController.js';
 import { PARTICLE_PARAMETER_COUNT } from './ml/MLPTrainingTargets.js';
 import { upgradeModelSnapshot } from './ml/ModelSnapshotUpgrade.js';
 import { PARTICLE_POSITIONAL_FEATURES } from './ml/MLPTrainingFeatures.js';
+import { randomizeActiveModel } from './ml/randomizeActiveModel.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -83,7 +84,6 @@ async function bootstrap() {
 
   const mlpModel = new MLPModel(defaultSnapshot?.config || FALLBACK_MLP_CONFIG);
   await mlpModel.init();
-  await applySnapshotWeights(mlpModel, defaultSnapshot);
 
   const mlpController = new MLPOrchestrator({
     model: mlpModel,
@@ -132,6 +132,20 @@ async function bootstrap() {
   });
   uiController.init();
 
+  const randomizeModel = (details = {}) =>
+    randomizeActiveModel({
+      mlpModel,
+      mlpController,
+      trainingManager,
+      uiController,
+      ...details,
+    }).catch((error) => {
+      console.error('[main] Failed to randomize model', error);
+      return null;
+    });
+
+  await randomizeModel({ reason: 'startup' });
+
   const dropOverlay = createDropOverlay();
   document.body.appendChild(dropOverlay);
 
@@ -151,6 +165,14 @@ async function bootstrap() {
     if (state.playing || state.unlocked) {
       onboarding?.complete?.();
     }
+  });
+
+  audioManager.on(AudioManagerEvents.TRACK_LOADED, ({ track, isResume }) => {
+    if (isResume) {
+      return;
+    }
+    const reason = track?.source === 'upload' ? 'upload' : 'track';
+    randomizeModel({ reason, track });
   });
 
   let last = performance.now();
@@ -183,17 +205,6 @@ async function loadInitialModelSnapshot() {
   } catch (error) {
     console.warn('[main] Unable to load default model snapshot.', error);
     return null;
-  }
-}
-
-async function applySnapshotWeights(model, snapshot) {
-  if (!snapshot?.weights?.length) {
-    return;
-  }
-  try {
-    await model.applyWeights(snapshot.weights);
-  } catch (error) {
-    console.warn('[main] Failed to apply snapshot weights.', error);
   }
 }
 

@@ -190,6 +190,10 @@ export class UIController extends BaseModule {
     return this;
   }
 
+  notifyModelRandomized(details = {}) {
+    this.trainingPanel?.handleModelRandomized?.(details);
+  }
+
   addFolder(name) {
     return this.gui?.addFolder(name);
   }

@@ -540,13 +540,10 @@ export class TrainingPanel extends BaseModule {
       await this.mlpModel.rebuild({ seed });
       if (typeof this.trainingManager?.updateTrainingOptions === 'function') {
         this.trainingManager.updateTrainingOptions({ seed });
-        this.state.trainingOptions.seed = seed;
       }
       await this.mlpController?.syncModelDimensions?.();
       await this.mlpController?.runOnce?.();
-      if (this.resultEl) {
-        this.resultEl.textContent = 'Randomized model weights. Ready for training.';
-      }
+      this.handleModelRandomized({ seed, reason: 'manual' });
     } catch (error) {
       this._showError(error?.message || 'Failed to randomize model.');
     } finally {
@@ -671,6 +668,26 @@ export class TrainingPanel extends BaseModule {
     } finally {
       event.target.value = '';
     }
+  }
+
+  handleModelRandomized({ seed, reason = 'manual', track = null } = {}) {
+    if (!Number.isFinite(seed)) {
+      return;
+    }
+    this.state.trainingOptions.seed = seed;
+    if (this.resultEl) {
+      const trackLabel = track?.title || track?.id || '';
+      let prefix = 'Model randomized';
+      if (reason === 'startup') {
+        prefix = 'Session seeded a random model';
+      } else if (reason === 'track') {
+        prefix = trackLabel ? `Track "${trackLabel}" seeded a random model` : 'New track seeded a random model';
+      } else if (reason === 'upload') {
+        prefix = trackLabel ? `Upload "${trackLabel}" seeded a random model` : 'Uploaded track seeded a random model';
+      }
+      this.resultEl.textContent = `${prefix} (seed ${seed}).`;
+    }
+    this._clearError();
   }
 
   _showError(message) {

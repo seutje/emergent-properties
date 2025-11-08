@@ -53,6 +53,24 @@ describe('AudioManager', () => {
     expect(resumed.started[0].offset).toBeCloseTo(5);
   });
 
+  it('emits offset metadata with TRACK_LOADED events, so resumes can be ignored', async () => {
+    const { manager, context } = createManager();
+    const payloads = [];
+    manager.on(AudioManagerEvents.TRACK_LOADED, (payload) => payloads.push(payload));
+
+    await manager.playTrack(DEFAULT_TRACK.id);
+    expect(payloads[0].offset).toBe(0);
+    expect(payloads[0].isResume).toBe(false);
+
+    context.currentTime = 3.5;
+    manager.pause();
+    context.currentTime = 7;
+    await manager.play();
+
+    expect(payloads[1].isResume).toBe(true);
+    expect(payloads[1].offset).toBeCloseTo(3.5);
+  });
+
   it('handles uploaded files and emits upload events', async () => {
     const { manager, context, uploads } = createManager();
     const fakeFile = {
@@ -103,6 +121,28 @@ describe('AudioManager', () => {
 
     await waitForSecondTrack;
     expect(manager.getState().currentTrack.id).toBe(tracks[1].id);
+    expect(manager.getState().playing).toBe(true);
+  });
+
+  it('wraps playback to the first bundled track when the final song ends', async () => {
+    const tracks = [
+      { id: 'track-01', title: 'Track One', url: '/one.mp3' },
+      { id: 'track-02', title: 'Track Two', url: '/two.mp3' },
+    ];
+    const { manager, context } = createManager({
+      tracks,
+      autoAdvanceDelayMs: 25,
+    });
+
+    await manager.playTrack(tracks[1].id);
+    const source = context.createdSources.at(-1);
+    expect(source).toBeTruthy();
+
+    const waitForFirstTrack = waitForTrack(manager, tracks[0].id);
+    source.onended();
+    await waitForFirstTrack;
+
+    expect(manager.getState().currentTrack.id).toBe(tracks[0].id);
     expect(manager.getState().playing).toBe(true);
   });
 

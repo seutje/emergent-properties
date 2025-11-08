@@ -99,3 +99,9 @@
 ## 2025-11-08
 - Added particle positional inputs (x/y/z/dist) to the training correlations picker, plumbed the metadata through the training manager/worker so positional drivers synthesize targets correctly, and grouped the UI select into audio vs particle options.
 - Updated the synthetic dataset builder + achievement metrics to normalize base particle features, propagate them through snapshots, and expanded the Jest suite (`npm test -- js/ml/MLPTrainingUtils.test.js`) to cover the new pathways.
+
+## 2025-11-09
+- Taught the app to reseed the MLP on startup and every time a new track (bundled or upload) begins by adding a shared `randomizeActiveModel` helper, wiring it through `main.js`, lil-gui, and the training panel so the UI reflects the new seeds, and extending AudioManager events with offset/resume metadata to avoid re-randomizing on pauses; new Jest coverage (`js/ml/randomizeActiveModel.test.js`, `js/audio/AudioManager.test.js`) keeps the workflow locked down.
+
+## 2025-11-09
+- Updated `AudioManager` auto-advance logic so when the final bundled track ends it loops back to the first track, keeping playlists continuous, and extended `js/audio/AudioManager.test.js` to lock in the wraparound behavior (`npm test -- js/audio/AudioManager.test.js`).
