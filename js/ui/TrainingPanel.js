@@ -38,7 +38,9 @@ export class TrainingPanel extends BaseModule {
       acc[target.id] = target.label;
       return acc;
     }, {});
-    this.maxCorrelations = options.maxCorrelations || 6;
+    this.maxCorrelations = Number.isFinite(options.maxCorrelations)
+      ? options.maxCorrelations
+      : Infinity;
     this.state = {
       correlations: [],
       status: 'idle',

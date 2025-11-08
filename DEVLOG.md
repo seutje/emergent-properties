@@ -55,3 +55,6 @@
 ## 2025-11-07
 - Added a particle seed control: `ParticleField` can now regenerate its seeded layout on demand, lil-gui exposes the seed so users can dial in deterministic variations, and reseeding keeps geometry/delta buffers in sync.
 - Wired `UIController` to notify `MLPOrchestrator.refreshParticleState`, implemented that refresh hook so the MLP rebuilds its static tensors/flicker baselines after reseeds, and extended `MLPOrchestrator.test.js` to lock down the new behavior.
+
+## 2025-11-08
+- Removed the correlation cap in `TrainingPanel` by defaulting the limit to infinity, so the Training UI now allows users to stack as many feature→parameter correlations as they need before launching a run.
