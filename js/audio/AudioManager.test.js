@@ -11,6 +11,8 @@ describe('AudioManager', () => {
     expect(context.nodes.analyser).toHaveLength(1);
     expect(events.at(-1).playing).toBe(false);
     expect(events.at(-1).unlocked).toBe(false);
+    expect(manager.getState().volume).toBeCloseTo(0.7);
+    expect(context.nodes.gain[0].gain.value).toBeCloseTo(0.49);
   });
 
   it('loads bundled tracks, starts playback, and caches buffers', async () => {
@@ -102,6 +104,17 @@ describe('AudioManager', () => {
     await waitForSecondTrack;
     expect(manager.getState().currentTrack.id).toBe(tracks[1].id);
     expect(manager.getState().playing).toBe(true);
+  });
+
+  it('applies a perceived-linear volume curve and emits state updates', () => {
+    const { manager, context, events } = createManager();
+    const baselineEvents = events.length;
+    manager.setVolume(0.5);
+    const state = manager.getState();
+    expect(state.volume).toBeCloseTo(0.5);
+    expect(context.nodes.gain[0].gain.value).toBeCloseTo(0.25);
+    expect(events.length).toBeGreaterThan(baselineEvents);
+    expect(events.at(-1).volume).toBeCloseTo(0.5);
   });
 });
 

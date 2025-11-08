@@ -18,7 +18,7 @@ const DEFAULT_ANALYSER_CONFIG = {
 
 const DEFAULT_OPTIONS = {
   tracks: [],
-  initialVolume: 0.9,
+  initialVolume: 0.7,
   analyser: DEFAULT_ANALYSER_CONFIG,
   dragActiveClass: 'audio-drop-active',
   autoAdvanceDelayMs: 1000,
@@ -54,6 +54,7 @@ export class AudioManager extends BaseModule {
       analyser: analyserOptions,
       tracks: trackList,
     };
+    this.options.initialVolume = this._clampVolume(this.options.initialVolume);
     this.fetchImpl =
       this.options.fetch || (typeof fetch !== 'undefined' ? fetch.bind(globalThis) : null);
 
@@ -82,6 +83,7 @@ export class AudioManager extends BaseModule {
       unlocked: false,
       isLoading: false,
       currentTrack: null,
+      volume: this.options.initialVolume,
     };
   }
 
@@ -211,9 +213,17 @@ export class AudioManager extends BaseModule {
     this._updateState({ playing: false });
   }
 
-  setVolume(value) {
-    if (!this.gainNode) return;
-    this.gainNode.gain.value = Math.min(1, Math.max(0, value));
+  setVolume(value, { silent = false } = {}) {
+    const clamped = this._clampVolume(value);
+    if (this.gainNode) {
+      this.gainNode.gain.value = this._perceivedToGain(clamped);
+    }
+    if (silent) {
+      this.state = { ...this.state, volume: clamped };
+    } else {
+      this._updateState({ volume: clamped });
+    }
+    return clamped;
   }
 
   async handleFile(file) {
@@ -277,7 +287,7 @@ export class AudioManager extends BaseModule {
     if (!this.context || this.analyser) return;
 
     this.gainNode = this.context.createGain();
-    this.gainNode.gain.value = this.options.initialVolume;
+    this.setVolume(this.state.volume, { silent: true });
 
     this.analyser = this.context.createAnalyser();
     this.analyser.fftSize = this.options.analyser.fftSize;
@@ -486,6 +496,20 @@ export class AudioManager extends BaseModule {
   _emitError(error) {
     console.error('[AudioManager]', error);
     this.emit(AudioManagerEvents.ERROR, { error });
+  }
+
+  _perceivedToGain(value) {
+    const normalized = this._clampVolume(value);
+    return normalized ** 2;
+  }
+
+  _clampVolume(value) {
+    if (!Number.isFinite(value)) {
+      return DEFAULT_OPTIONS.initialVolume;
+    }
+    if (value <= 0) return 0;
+    if (value >= 1) return 1;
+    return value;
   }
 
   _clearAutoAdvanceTimer() {

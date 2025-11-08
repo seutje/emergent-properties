@@ -68,3 +68,7 @@
 
 ## 2025-11-08
 - Switched the feature extractor’s default EMA toggle off so fresh sessions show unsmoothed feature spikes; the lil-gui control still allows enabling smoothing when desired.
+
+## 2025-11-08
+- Added a perceived-linear volume slider (defaulting to 70%) to the transport controls so listeners can dial gain without leaving the glassmorphic UI, plus matching styles and readouts to keep it on-brand.
+- Reworked `AudioManager` volume handling to treat slider positions as perceived loudness (squared before hitting the gain node), expose the live volume in STATE events, and backfilled Jest coverage for the new curve.

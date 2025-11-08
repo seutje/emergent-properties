@@ -30,6 +30,24 @@ const FALLBACK_MLP_CONFIG = {
   seed: 1337,
 };
 
+const DEFAULT_VOLUME_PERCENT = 70;
+
+const clampPercent = (value) => {
+  if (!Number.isFinite(value)) return DEFAULT_VOLUME_PERCENT;
+  if (value <= 0) return 0;
+  if (value >= 100) return 100;
+  return Math.round(value);
+};
+
+const percentToVolume = (percent) => clampPercent(percent) / 100;
+const volumeToPercent = (value) => {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_VOLUME_PERCENT;
+  }
+  const clamped = Math.min(1, Math.max(0, value));
+  return Math.round(clamped * 100);
+};
+
 bootstrap().catch((error) => {
   console.error('[main] Failed to bootstrap application', error);
 });
@@ -51,6 +69,7 @@ async function bootstrap() {
     tracks: BUNDLED_TRACKS,
     fileInput,
     dropTarget: document.body,
+    initialVolume: percentToVolume(DEFAULT_VOLUME_PERCENT),
   });
   audioManager.init();
 
@@ -109,7 +128,7 @@ async function bootstrap() {
   const dropOverlay = createDropOverlay();
   document.body.appendChild(dropOverlay);
 
-  const transport = createTransportControls(audioManager);
+  const transport = createTransportControls(audioManager, DEFAULT_VOLUME_PERCENT);
   document.body.appendChild(transport);
 
   const gate = createAudioGate(audioManager);
@@ -256,7 +275,7 @@ function createAudioGate(manager) {
   };
 }
 
-function createTransportControls(manager) {
+function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_PERCENT) {
   const wrapper = document.createElement('section');
   wrapper.className = 'audio-transport';
   wrapper.setAttribute('aria-label', 'Audio transport controls');
@@ -283,6 +302,44 @@ function createTransportControls(manager) {
   const status = document.createElement('span');
   status.className = 'audio-status';
   status.textContent = 'Pick a track to begin';
+
+  const volumeWrapper = document.createElement('div');
+  volumeWrapper.className = 'audio-volume';
+
+  const volumeLabel = document.createElement('span');
+  volumeLabel.className = 'audio-volume__label';
+  volumeLabel.textContent = 'Vol';
+
+  const volumeSlider = document.createElement('input');
+  volumeSlider.type = 'range';
+  volumeSlider.className = 'audio-volume__slider';
+  volumeSlider.min = '0';
+  volumeSlider.max = '100';
+  volumeSlider.step = '1';
+  volumeSlider.setAttribute('aria-label', 'Volume');
+  const initialVolumePercent = volumeToPercent(manager.getState().volume ?? percentToVolume(defaultVolumePercent));
+  volumeSlider.value = String(initialVolumePercent);
+
+  const volumeValue = document.createElement('span');
+  volumeValue.className = 'audio-volume__value';
+  volumeValue.textContent = `${initialVolumePercent}%`;
+
+  const updateVolumeUi = (percent) => {
+    const safePercent = clampPercent(percent);
+    const nextValue = String(safePercent);
+    if (volumeSlider.value !== nextValue) {
+      volumeSlider.value = nextValue;
+    }
+    volumeValue.textContent = `${safePercent}%`;
+  };
+
+  volumeSlider.addEventListener('input', (event) => {
+    const percent = Number(event.target.value);
+    manager.setVolume(percentToVolume(percent));
+    updateVolumeUi(percent);
+  });
+
+  volumeWrapper.append(volumeLabel, volumeSlider, volumeValue);
 
   const tracks = manager.getTracks();
   tracks.forEach((track, index) => {
@@ -324,6 +381,11 @@ function createTransportControls(manager) {
     } else {
       status.textContent = 'Pick a track to begin';
     }
+    if (typeof state.volume === 'number') {
+      updateVolumeUi(volumeToPercent(state.volume));
+    } else {
+      updateVolumeUi(defaultVolumePercent);
+    }
   });
 
   manager.on(AudioManagerEvents.ERROR, ({ error }) => {
@@ -336,7 +398,7 @@ function createTransportControls(manager) {
     status.textContent = `Now playing: ${track.title}`;
   });
 
-  wrapper.append(playButton, stopButton, trackSelect, uploadButton, status);
+  wrapper.append(playButton, stopButton, trackSelect, uploadButton, volumeWrapper, status);
   return wrapper;
 }
 

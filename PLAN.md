@@ -85,6 +85,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [x] [AI] Add in-browser training workflow with user-defined correlations plus model import/export tooling.
 - [x] [AI] Load curated default MLP snapshot (assets/models/default.json) on boot to sync baseline model + training settings.
 - [x] [AI] Disable EMA smoothing by default so first-time loads reflect raw audio dynamics; GUI still exposes the toggle.
+- [x] [AI] Add a perceived-linear volume slider to the transport UI with a 70% default setting.
 
 **Acceptance criteria:**
 - App meets DESIGN.md §19 acceptance criteria.
