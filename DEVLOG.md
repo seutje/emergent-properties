@@ -105,3 +105,12 @@
 
 ## 2025-11-09
 - Updated `AudioManager` auto-advance logic so when the final bundled track ends it loops back to the first track, keeping playlists continuous, and extended `js/audio/AudioManager.test.js` to lock in the wraparound behavior (`npm test -- js/audio/AudioManager.test.js`).
+
+## 2025-11-09
+- Moved the training sliders/buttons into a new lil-gui “Training” folder so epochs/batch/noise + action buttons (train, finetune, pause, resume, abort, randomize) live alongside the rest of the controls, complete with status/error readouts that stay in sync with the training manager lifecycle.
+- Added event wiring so the GUI state reflects worker progress/result messages and disables buttons appropriately, then hid the redundant controls inside `TrainingPanel` (it now defaults to just correlations/export when invoked from UIController).
+- Ran `npm test` to keep the Jest suite green after the UI reshuffle.
+
+## 2025-11-09
+- Embedded the remaining TrainingPanel (correlation editor, results, import/export) directly inside the lil-gui “Training” folder, so there’s no separate floating overlay and every training workflow now lives in one pane. The embedded variant reuses the existing styling but drops the redundant status bar since lil-gui now shows those stats.
+- Added an inline container + CSS overrides to keep the embedded panel flush with the GUI layout, and updated the panel itself to support optional headers/status bars and arbitrary mount targets for future reuse.

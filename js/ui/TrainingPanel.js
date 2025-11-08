@@ -81,6 +81,13 @@ export class TrainingPanel extends BaseModule {
     this.fileInput = null;
     this.unsubscribes = [];
     this._initStateFromManager();
+    this.showTrainingControls = options.showTrainingControls !== false;
+    this.showHeader = options.showHeader !== false;
+    this.showStatusBar = options.showStatusBar !== false;
+    this.showResultSection = options.showResultSection !== false;
+    this.showExportSection = options.showExportSection !== false;
+    this.embedded = Boolean(options.embedded);
+    this.mountTarget = options.mountTarget || null;
   }
 
   init() {
@@ -91,31 +98,53 @@ export class TrainingPanel extends BaseModule {
       return this;
     }
     this.root = createElement('aside', 'training-panel');
+    if (this.embedded) {
+      this.root.classList.add('training-panel--embedded');
+    }
     this.root.setAttribute('aria-live', 'polite');
     this.root.innerHTML = '';
 
-    const header = createElement('header', 'training-panel__header');
-    header.appendChild(createElement('h3', '', 'In-Browser Training'));
-    header.appendChild(createElement('p', '', 'Map audio features to particle parameters, then train & export custom models.'));
+    const children = [];
+    if (this.showHeader) {
+      const header = createElement('header', 'training-panel__header');
+      header.appendChild(createElement('h3', '', 'In-Browser Training'));
+      header.appendChild(createElement('p', '', 'Map audio features to particle parameters, then train & export custom models.'));
+      children.push(header);
+    }
 
-    const statusBar = createElement('div', 'training-panel__status');
-    this.statusEl = createElement('span', 'training-panel__status-text', 'Idle');
-    this.progressEl = createElement('div', 'training-panel__progress');
-    const progressBar = createElement('div', 'training-panel__progress-bar');
-    this.progressEl.appendChild(progressBar);
-    this.lossEl = createElement('span', 'training-panel__loss', '');
-    statusBar.append(this.statusEl, this.progressEl, this.lossEl);
+    if (this.showStatusBar) {
+      const statusBar = createElement('div', 'training-panel__status');
+      this.statusEl = createElement('span', 'training-panel__status-text', 'Idle');
+      this.progressEl = createElement('div', 'training-panel__progress');
+      const progressBar = createElement('div', 'training-panel__progress-bar');
+      this.progressEl.appendChild(progressBar);
+      this.lossEl = createElement('span', 'training-panel__loss', '');
+      statusBar.append(this.statusEl, this.progressEl, this.lossEl);
+      children.push(statusBar);
+    } else {
+      this.statusEl = null;
+      this.progressEl = null;
+      this.lossEl = null;
+    }
 
-    const correlationSection = this._buildCorrelationSection();
-    const trainingSection = this._buildTrainingSection();
-    const resultSection = this._buildResultSection();
-    const exportSection = this._buildExportSection();
+    children.push(this._buildCorrelationSection());
+    if (this.showTrainingControls) {
+      children.push(this._buildTrainingSection());
+    }
+    if (this.showResultSection) {
+      children.push(this._buildResultSection());
+    }
+    if (this.showExportSection) {
+      children.push(this._buildExportSection());
+    }
 
     this.errorEl = createElement('p', 'training-panel__error');
     this.errorEl.hidden = true;
+    children.push(this.errorEl);
 
-    this.root.append(header, statusBar, correlationSection, trainingSection, resultSection, exportSection, this.errorEl);
-    document.body.appendChild(this.root);
+    this.root.append(...children);
+    const mountTarget = this.mountTarget || document.body;
+    mountTarget.appendChild(this.root);
 
     this._bindTrainingEvents();
     this._renderCorrelations();
@@ -555,7 +584,6 @@ export class TrainingPanel extends BaseModule {
   }
 
   _syncStatus(state = {}) {
-    if (!this.statusEl || !this.progressEl) return;
     const status = state.status || this.trainingManager.getState?.().status || 'idle';
     const epoch = state.epoch ?? this.trainingManager.getState?.().epoch ?? 0;
     const epochs = state.epochs ?? this.trainingManager.getState?.().epochs ?? this.state.trainingOptions.epochs;
@@ -566,11 +594,17 @@ export class TrainingPanel extends BaseModule {
     this.state.epochs = epochs;
     this.state.loss = loss;
 
-    this.statusEl.textContent = statusLabels[status] || status;
+    if (this.statusEl) {
+      this.statusEl.textContent = statusLabels[status] || status;
+    }
     const progress = epochs ? Math.min(1, epoch / epochs) : 0;
-    this.progressEl.firstElementChild.style.transform = `scaleX(${progress})`;
-    this.progressEl.setAttribute('aria-valuenow', progress);
-    this.lossEl.textContent = Number.isFinite(loss) ? `Loss: ${loss.toFixed(4)}` : '';
+    if (this.progressEl?.firstElementChild) {
+      this.progressEl.firstElementChild.style.transform = `scaleX(${progress})`;
+      this.progressEl.setAttribute('aria-valuenow', progress);
+    }
+    if (this.lossEl) {
+      this.lossEl.textContent = Number.isFinite(loss) ? `Loss: ${loss.toFixed(4)}` : '';
+    }
 
     if (this.buttons.start) {
       this.buttons.start.disabled = status === 'running';

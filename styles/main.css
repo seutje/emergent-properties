@@ -285,6 +285,34 @@ body.audio-drop-active .audio-drop-overlay {
   backdrop-filter: blur(12px);
 }
 
+.training-panel.training-panel--embedded {
+  position: static;
+  top: auto;
+  right: auto;
+  transform: none;
+  width: 100%;
+  max-height: none;
+  margin: 0.5rem 0 0;
+  padding: 0.9rem 0.75rem;
+  background: rgba(5, 8, 16, 0.7);
+  border-radius: 0.75rem;
+  border-width: 1px;
+  box-shadow: none;
+  backdrop-filter: blur(8px);
+}
+
+.lil-gui.root {
+  width: 500px;
+}
+
+.lil-gui .training-panel.training-panel--embedded {
+  width: calc(100% - 0.5rem);
+}
+
+.training-panel-embed {
+  margin-top: 0.75rem;
+}
+
 .training-panel__header h3 {
   margin: 0 0 0.25rem;
   letter-spacing: 0.04em;

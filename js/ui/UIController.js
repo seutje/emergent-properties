@@ -4,6 +4,7 @@ import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
 import { PresetStore } from './PresetStore.js';
 import { TrainingPanel } from './TrainingPanel.js';
 import { PARTICLE_POSITIONAL_FEATURES } from '../ml/MLPTrainingFeatures.js';
+import { randomizeActiveModel } from '../ml/randomizeActiveModel.js';
 
 const FEATURE_LABELS = {
   rms: 'RMS',
@@ -151,6 +152,8 @@ export class UIController extends BaseModule {
     this.sections = {};
     this.trainingManager = options.trainingManager || null;
     this.trainingPanel = null;
+    this.trainingPanelContainer = null;
+    this.trainingSubscriptions = [];
     this.startClosed = Object.prototype.hasOwnProperty.call(options, 'startClosed')
       ? Boolean(options.startClosed)
       : true;
@@ -167,6 +170,18 @@ export class UIController extends BaseModule {
   }
 
   dispose() {
+    this.trainingSubscriptions.forEach((unsub) => {
+      try {
+        unsub?.();
+      } catch (error) {
+        console.warn('[UIController] Failed to cleanup training subscription', error);
+      }
+    });
+    this.trainingSubscriptions.length = 0;
+    if (this.trainingPanelContainer) {
+      this.trainingPanelContainer.remove();
+      this.trainingPanelContainer = null;
+    }
     this.trainingPanel?.dispose?.();
     super.dispose();
   }
@@ -183,15 +198,16 @@ export class UIController extends BaseModule {
     this._buildFeatureFolder();
     this._buildRenderFolder();
     this._buildMlpFolder();
+    this._buildTrainingFolder();
     this._buildPresetFolder();
     this._loadPresets();
-    this._mountTrainingPanel();
     super.init();
     return this;
   }
 
   notifyModelRandomized(details = {}) {
     this.trainingPanel?.handleModelRandomized?.(details);
+    this._setTrainingError('');
   }
 
   addFolder(name) {
@@ -716,6 +732,118 @@ export class UIController extends BaseModule {
     };
   }
 
+  _buildTrainingFolder() {
+    if (!this.trainingManager || !this.gui) return;
+    const trainingOptions = this.trainingManager.getTrainingOptions?.() || {};
+    const managerState = this.trainingManager.getState?.() || {};
+    const folder = this.gui.addFolder('Training');
+    const state = {
+      epochs: trainingOptions.epochs ?? 24,
+      batchSize: trainingOptions.batchSize ?? 128,
+      sampleCount: trainingOptions.sampleCount ?? 4096,
+      learningRate: trainingOptions.learningRate ?? 0.0015,
+      noise: trainingOptions.noise ?? 0.04,
+      status: managerState.status || 'idle',
+      epoch: managerState.epoch ?? 0,
+      epochsTotal: managerState.epochs ?? trainingOptions.epochs ?? 0,
+      lossDisplay: Number.isFinite(managerState.loss) ? managerState.loss.toFixed(4) : '-',
+      progressPercent: managerState.epochs
+        ? `${Math.round(((managerState.epoch ?? 0) / managerState.epochs) * 100)}%`
+        : '0%',
+      errorMessage: '',
+      lastResult: '',
+    };
+
+    const setTrainingOption = (key, value, precision = null) => {
+      if (!this.trainingManager) return;
+      const numeric = Number(value);
+      const nextValue = Number.isFinite(numeric)
+        ? precision != null
+          ? Number(numeric.toFixed(precision))
+          : numeric
+        : state[key];
+      state[key] = nextValue;
+      this.trainingManager.updateTrainingOptions({ [key]: nextValue });
+    };
+
+    const controllers = {
+      epochs: folder
+        .add(state, 'epochs', 1, 200, 1)
+        .name('Epochs')
+        .onFinishChange((value) => setTrainingOption('epochs', value)),
+      batchSize: folder
+        .add(state, 'batchSize', 8, 1024, 8)
+        .name('Batch size')
+        .onFinishChange((value) => setTrainingOption('batchSize', value)),
+      sampleCount: folder
+        .add(state, 'sampleCount', 512, 16384, 256)
+        .name('Sample count')
+        .onFinishChange((value) => setTrainingOption('sampleCount', value)),
+      learningRate: folder
+        .add(state, 'learningRate', 0.0001, 0.01, 0.0001)
+        .name('Learning rate')
+        .onFinishChange((value) => setTrainingOption('learningRate', value, 5)),
+      noise: folder
+        .add(state, 'noise', 0, 0.25, 0.005)
+        .name('Noise')
+        .onFinishChange((value) => setTrainingOption('noise', value, 3)),
+    };
+
+    const statusFolder = folder.addFolder('Status');
+    const statusControllers = {
+      status: statusFolder.add(state, 'status').name('State').listen(),
+      epoch: statusFolder.add(state, 'epoch').name('Epoch').listen(),
+      epochsTotal: statusFolder.add(state, 'epochsTotal').name('Epochs target').listen(),
+      progressPercent: statusFolder.add(state, 'progressPercent').name('Progress').listen(),
+      lossDisplay: statusFolder.add(state, 'lossDisplay').name('Loss').listen(),
+      errorMessage: statusFolder.add(state, 'errorMessage').name('Error').listen(),
+      lastResult: statusFolder.add(state, 'lastResult').name('Last result').listen(),
+    };
+    Object.values(statusControllers).forEach((controller) => controller.disable?.());
+
+    const actions = {
+      randomize: () => this._randomizeModelFromTrainingFolder(),
+      train: () => this._startTrainingRun({ finetune: false }),
+      finetune: () => this._startTrainingRun({ finetune: true }),
+      pause: () => this.trainingManager?.pauseTraining?.(),
+      resume: () => this.trainingManager?.resumeTraining?.(),
+      abort: () => this.trainingManager?.abortTraining?.(),
+    };
+    const actionFolder = folder.addFolder('Actions');
+    const actionControllers = {
+      randomize: actionFolder.add(actions, 'randomize').name('Random model'),
+      train: actionFolder.add(actions, 'train').name('Train'),
+      finetune: actionFolder.add(actions, 'finetune').name('Finetune'),
+      pause: actionFolder.add(actions, 'pause').name('Pause'),
+      resume: actionFolder.add(actions, 'resume').name('Resume'),
+      abort: actionFolder.add(actions, 'abort').name('Abort & Apply'),
+    };
+
+    folder.open();
+    statusFolder.open();
+    actionFolder.open();
+
+    this.sections.training = {
+      folder,
+      state,
+      controllers,
+      statusControllers,
+      actionControllers,
+    };
+
+    if (typeof document !== 'undefined' && folder?.domElement) {
+      this.trainingPanelContainer?.remove?.();
+      const embeddedContainer = document.createElement('div');
+      embeddedContainer.className = 'training-panel-embed';
+      folder.domElement.appendChild(embeddedContainer);
+      this.trainingPanelContainer = embeddedContainer;
+      this._mountTrainingPanel(embeddedContainer);
+    }
+
+    this._attachTrainingListeners();
+    this._refreshTrainingDisplays();
+  }
+
   _buildPresetFolder() {
     if (!this.gui) return;
     const folder = this.gui.addFolder('Presets');
@@ -998,7 +1126,7 @@ export class UIController extends BaseModule {
     });
   }
 
-  _mountTrainingPanel() {
+  _mountTrainingPanel(mountTarget = null) {
     if (!this.trainingManager || this.trainingPanel) {
       return;
     }
@@ -1017,7 +1145,175 @@ export class UIController extends BaseModule {
       },
       positionalFeatures: PARTICLE_POSITIONAL_FEATURES,
       trainingOptions: this.options.mlpTrainingOptions || {},
+      showTrainingControls: false,
+      showStatusBar: !mountTarget,
+      embedded: Boolean(mountTarget),
+      mountTarget: mountTarget || undefined,
     });
     this.trainingPanel.init();
+  }
+
+  _attachTrainingListeners() {
+    if (!this.trainingManager || this.trainingSubscriptions.length) {
+      return;
+    }
+    const subscribe = (event, handler) => {
+      if (typeof this.trainingManager.on !== 'function') {
+        return;
+      }
+      const unsubscribe = this.trainingManager.on(event, handler);
+      if (typeof unsubscribe === 'function') {
+        this.trainingSubscriptions.push(unsubscribe);
+      }
+    };
+    subscribe('state', (payload) => this._handleTrainingStateUpdate(payload));
+    subscribe('progress', (payload) => this._handleTrainingStateUpdate(payload));
+    subscribe('result', (payload) => this._handleTrainingResult(payload));
+    subscribe('error', (payload) => this._handleTrainingError(payload));
+  }
+
+  _handleTrainingStateUpdate(payload = {}) {
+    const section = this.sections.training;
+    if (!section) return;
+    const state = section.state;
+    const managerState = this.trainingManager?.getState?.() || {};
+    const nextStatus = payload.status || managerState.status || state.status || 'idle';
+    const nextEpoch = payload.epoch ?? managerState.epoch ?? state.epoch ?? 0;
+    const nextEpochs = payload.epochs ?? managerState.epochs ?? state.epochsTotal ?? state.epochs ?? 0;
+    const nextLoss =
+      payload.loss ??
+      managerState.loss ??
+      (state.lossDisplay && state.lossDisplay !== '-' ? Number(state.lossDisplay) : null);
+    state.status = nextStatus;
+    state.epoch = nextEpoch;
+    state.epochsTotal = nextEpochs;
+    if (Number.isFinite(nextLoss)) {
+      state.lossDisplay = Number(nextLoss).toFixed(4);
+    }
+    const progress = nextEpochs > 0 ? Math.min(1, nextEpoch / nextEpochs) : 0;
+    state.progressPercent = `${Math.round(progress * 100)}%`;
+    if (state.errorMessage && nextStatus !== 'error') {
+      state.errorMessage = '';
+    }
+    this._refreshTrainingDisplays();
+  }
+
+  _handleTrainingResult(payload = {}) {
+    const section = this.sections.training;
+    if (!section) return;
+    const metadata = payload?.metadata;
+    if (!metadata) {
+      section.state.lastResult = '';
+    } else {
+      const status = metadata.status === 'completed' ? 'Completed' : 'Checkpoint';
+      const epoch = metadata.epochs ?? metadata.epoch ?? section.state.epoch;
+      const loss = Number.isFinite(metadata.loss) ? metadata.loss.toFixed(4) : section.state.lossDisplay || '-';
+      section.state.lastResult = `${status} epoch ${epoch} (loss ${loss})`;
+    }
+    this._refreshTrainingDisplays();
+  }
+
+  _handleTrainingError(payload = {}) {
+    const message = payload?.message || 'Training failed.';
+    this._setTrainingError(message);
+  }
+
+  _setTrainingError(message = '') {
+    const section = this.sections.training;
+    if (!section) return;
+    section.state.errorMessage = message;
+    this._refreshTrainingDisplays();
+  }
+
+  _refreshTrainingDisplays() {
+    const section = this.sections.training;
+    if (!section) return;
+    const controllers = [
+      ...Object.values(section.controllers || {}),
+      ...Object.values(section.statusControllers || {}),
+    ];
+    controllers.forEach((controller) => controller.updateDisplay?.());
+    this._updateTrainingButtons();
+  }
+
+  _updateTrainingButtons() {
+    const section = this.sections.training;
+    if (!section) return;
+    const status = section.state.status || 'idle';
+    const isRunning = status === 'running';
+    const isPaused = status === 'paused';
+    const actionControllers = section.actionControllers || {};
+    if (actionControllers.randomize) {
+      actionControllers.randomize[isRunning ? 'disable' : 'enable']?.();
+    }
+    if (actionControllers.train) {
+      actionControllers.train[isRunning ? 'disable' : 'enable']?.();
+    }
+    if (actionControllers.finetune) {
+      actionControllers.finetune[isRunning ? 'disable' : 'enable']?.();
+    }
+    if (actionControllers.pause) {
+      actionControllers.pause[isRunning ? 'enable' : 'disable']?.();
+    }
+    if (actionControllers.resume) {
+      actionControllers.resume[isPaused ? 'enable' : 'disable']?.();
+    }
+    if (actionControllers.abort) {
+      actionControllers.abort[isRunning || isPaused ? 'enable' : 'disable']?.();
+    }
+  }
+
+  async _startTrainingRun({ finetune = false } = {}) {
+    if (!this.trainingManager || !this.sections.training) {
+      return;
+    }
+    const optionKeys = ['epochs', 'batchSize', 'sampleCount', 'learningRate', 'noise'];
+    const options = optionKeys.reduce((acc, key) => {
+      if (Object.prototype.hasOwnProperty.call(this.sections.training.state, key)) {
+        acc[key] = this.sections.training.state[key];
+      }
+      return acc;
+    }, {});
+    try {
+      if (finetune) {
+        if (!this.mlpModel) {
+          throw new Error('MLP model unavailable for finetune.');
+        }
+        const snapshot = await this.mlpModel.exportSnapshot({
+          label: 'Finetune base',
+          correlations: this.trainingManager.getCorrelations?.(),
+        });
+        const weights = snapshot?.weights;
+        if (!weights?.length) {
+          throw new Error('Unable to capture current model weights.');
+        }
+        await this.trainingManager.startTraining({ ...options, baseWeights: weights });
+      } else {
+        await this.trainingManager.startTraining(options);
+      }
+      this._setTrainingError('');
+    } catch (error) {
+      console.error('[UIController] Training run failed', error);
+      this._setTrainingError(error?.message || 'Unable to start training.');
+    }
+  }
+
+  async _randomizeModelFromTrainingFolder() {
+    if (!this.mlpModel || !this.mlpController) {
+      this._setTrainingError('Model unavailable for randomization.');
+      return;
+    }
+    try {
+      await randomizeActiveModel({
+        mlpModel: this.mlpModel,
+        mlpController: this.mlpController,
+        trainingManager: this.trainingManager,
+        uiController: this,
+      });
+      this._setTrainingError('');
+    } catch (error) {
+      console.error('[UIController] Randomization failed', error);
+      this._setTrainingError(error?.message || 'Failed to randomize model.');
+    }
   }
 }
