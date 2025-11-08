@@ -89,3 +89,6 @@
 - Split the feature extractor’s low/mid spectrum bands into `bandSub`, `bandBass`, `bandLowMid`, `bandMid`, and `bandHigh`, updated the GUI labels + reactivity logic to use the richer feature set, and tuned the band defaults so tempo detection still keys off sub/bass energy.
 - Augmented the snapshot upgrader to remap legacy `bandLow` correlations, pad kernels when the stored input size lags behind the new 19-dim vector, and refreshed the curated default snapshot metadata so presets reference the new band names.
 - Backfilled Jest coverage across `FeatureExtractor`, `MLPOrchestrator`, and `ModelSnapshotUpgrade` to lock down the new behavior and ran those suites via `npm test -- js/audio/FeatureExtractor.test.js js/ml/MLPOrchestrator.test.js js/ml/ModelSnapshotUpgrade.test.js`.
+
+## 2025-11-09
+- Added a "Random model" control to the Training Panel that reseeds the TensorFlow model (and refreshes the orchestrator) so humans can audition fresh weight initializations before running a training session; the button disables during runs to avoid mid-training rebuilds.

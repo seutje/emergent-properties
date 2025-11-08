@@ -205,11 +205,12 @@ export class TrainingPanel extends BaseModule {
     });
 
     const controls = createElement('div', 'training-panel__actions');
+    this.buttons.random = this._createActionButton('Random model', 'ghost', () => this._handleRandomModel());
     this.buttons.start = this._createActionButton('Train', 'primary', () => this._handleStart());
     this.buttons.pause = this._createActionButton('Pause', 'ghost', () => this.trainingManager.pauseTraining());
     this.buttons.resume = this._createActionButton('Resume', 'ghost', () => this.trainingManager.resumeTraining());
     this.buttons.abort = this._createActionButton('Abort & Apply', 'danger', () => this.trainingManager.abortTraining());
-    controls.append(this.buttons.start, this.buttons.pause, this.buttons.resume, this.buttons.abort);
+    controls.append(this.buttons.random, this.buttons.start, this.buttons.pause, this.buttons.resume, this.buttons.abort);
 
     section.append(grid, controls);
     return section;
@@ -421,6 +422,47 @@ export class TrainingPanel extends BaseModule {
     }
   }
 
+  async _handleRandomModel() {
+    this._clearError();
+    if (!this.mlpModel) {
+      this._showError('MLP Model unavailable.');
+      return;
+    }
+    if (this.state.status === 'running') {
+      this._showError('Pause or abort training before randomizing the model.');
+      return;
+    }
+    const button = this.buttons.random;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Randomizing...';
+    }
+    try {
+      const config = this.mlpModel.getConfig?.();
+      if (!config) {
+        throw new Error('MLP configuration unavailable.');
+      }
+      const seed = Date.now();
+      await this.mlpModel.rebuild({ seed });
+      if (typeof this.trainingManager?.updateTrainingOptions === 'function') {
+        this.trainingManager.updateTrainingOptions({ seed });
+        this.state.trainingOptions.seed = seed;
+      }
+      await this.mlpController?.syncModelDimensions?.();
+      await this.mlpController?.runOnce?.();
+      if (this.resultEl) {
+        this.resultEl.textContent = 'Randomized model weights. Ready for training.';
+      }
+    } catch (error) {
+      this._showError(error?.message || 'Failed to randomize model.');
+    } finally {
+      if (button) {
+        button.textContent = 'Random model';
+        button.disabled = this.state.status === 'running';
+      }
+    }
+  }
+
   _syncStatus(state = {}) {
     if (!this.statusEl || !this.progressEl) return;
     const status = state.status || this.trainingManager.getState?.().status || 'idle';
@@ -441,6 +483,9 @@ export class TrainingPanel extends BaseModule {
 
     if (this.buttons.start) {
       this.buttons.start.disabled = status === 'running';
+    }
+    if (this.buttons.random) {
+      this.buttons.random.disabled = status === 'running';
     }
     if (this.buttons.pause) {
       this.buttons.pause.disabled = status !== 'running';
