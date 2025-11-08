@@ -3,6 +3,7 @@ import { BaseModule } from '../core/BaseModule.js';
 import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
 import { PresetStore } from './PresetStore.js';
 import { TrainingPanel } from './TrainingPanel.js';
+import { PARTICLE_POSITIONAL_FEATURES } from '../ml/MLPTrainingFeatures.js';
 
 const FEATURE_LABELS = {
   rms: 'RMS',
@@ -997,12 +998,20 @@ export class UIController extends BaseModule {
     if (!this.trainingManager || this.trainingPanel) {
       return;
     }
+    const positionalLabels = PARTICLE_POSITIONAL_FEATURES.reduce((acc, feature) => {
+      acc[feature.id] = feature.label;
+      return acc;
+    }, {});
     this.trainingPanel = new TrainingPanel({
       trainingManager: this.trainingManager,
       mlpModel: this.mlpModel,
       mlpController: this.mlpController,
       featureKeys: FEATURE_KEYS,
-      featureLabels: FEATURE_LABELS,
+      featureLabels: {
+        ...FEATURE_LABELS,
+        ...positionalLabels,
+      },
+      positionalFeatures: PARTICLE_POSITIONAL_FEATURES,
       trainingOptions: this.options.mlpTrainingOptions || {},
     });
     this.trainingPanel.init();

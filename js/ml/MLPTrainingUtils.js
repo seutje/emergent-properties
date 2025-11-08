@@ -1,4 +1,5 @@
 import { PARTICLE_PARAMETER_TARGETS, getParticleParameterTarget } from './MLPTrainingTargets.js';
+import { CORRELATION_FEATURE_SOURCES, getParticlePositionalFeature } from './MLPTrainingFeatures.js';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const clamp01 = (value) => clamp(value, 0, 1);
@@ -21,15 +22,68 @@ export const DEFAULT_CORRELATION = (featureKey, targetId) => ({
   polarity: 'direct',
 });
 
-export function sanitizeCorrelation(entry = {}, featureKeys = []) {
+const buildPositionalFeatureMap = (list = []) => {
+  const map = new Map();
+  (Array.isArray(list) ? list : []).forEach((feature) => {
+    if (feature?.id != null && Number.isFinite(feature.baseIndex)) {
+      map.set(feature.id, {
+        id: feature.id,
+        label: feature.label,
+        baseIndex: feature.baseIndex,
+      });
+    }
+  });
+  return map;
+};
+
+const normalizeBaseFeatureValue = (value, index, stats = null) => {
+  if (!stats || !stats[index]) {
+    return clamp(value, -1, 1);
+  }
+  const { min, max } = stats[index];
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max - min < 1e-5) {
+    return clamp(value, -1, 1);
+  }
+  const normalized = (value - min) / (max - min);
+  return clamp(normalized * 2 - 1, -1, 1);
+};
+
+const computeBaseStats = (buffer, count, dims) => {
+  if (!buffer || !count || !dims) {
+    return null;
+  }
+  const stats = Array.from({ length: dims }, () => ({ min: Infinity, max: -Infinity }));
+  for (let row = 0; row < count; row += 1) {
+    const baseOffset = row * dims;
+    for (let dim = 0; dim < dims; dim += 1) {
+      const value = buffer[baseOffset + dim];
+      const entry = stats[dim];
+      if (value < entry.min) {
+        entry.min = value;
+      }
+      if (value > entry.max) {
+        entry.max = value;
+      }
+    }
+  }
+  return stats;
+};
+
+export function sanitizeCorrelation(entry = {}, featureKeys = [], options = {}) {
   const features = Array.isArray(featureKeys) && featureKeys.length ? featureKeys : ['rms'];
-  const fallbackFeature = features[0];
-  const featureKey = features.includes(entry.featureKey) ? entry.featureKey : fallbackFeature;
+  const positionalFeatures = Array.isArray(options.positionalFeatures) ? options.positionalFeatures : [];
+  const positionalMap = buildPositionalFeatureMap(positionalFeatures);
+  const positionalKeys = Array.from(positionalMap.keys());
+  const allKeys = [...features, ...positionalKeys];
+  const fallbackFeature = allKeys[0] || features[0];
+  const featureKey = allKeys.includes(entry.featureKey) ? entry.featureKey : fallbackFeature;
   const featureIndex = Math.max(0, features.indexOf(featureKey));
   const target = getParticleParameterTarget(entry.targetId) || PARTICLE_PARAMETER_TARGETS[0];
   const strength = clamp01(Number(entry.strength) || 0);
   const polarity = entry.polarity === 'inverse' ? 'inverse' : 'direct';
   const id = entry.id || `${featureKey}-${target.id}`;
+  const positionalMeta = positionalMap.get(featureKey) || getParticlePositionalFeature(featureKey);
+  const source = positionalMeta ? CORRELATION_FEATURE_SOURCES.PARTICLE : CORRELATION_FEATURE_SOURCES.AUDIO;
   return {
     id,
     featureKey,
@@ -37,17 +91,19 @@ export function sanitizeCorrelation(entry = {}, featureKeys = []) {
     targetIndex: target.outputIndex,
     axis: target.axis || null,
     group: target.group,
-    featureIndex,
+    featureIndex: source === CORRELATION_FEATURE_SOURCES.AUDIO ? featureIndex : null,
+    baseIndex: positionalMeta?.baseIndex ?? null,
     strength,
     polarity,
+    source,
   };
 }
 
-export function sanitizeCorrelationList(list = [], featureKeys = []) {
+export function sanitizeCorrelationList(list = [], featureKeys = [], options = {}) {
   const result = [];
   const seen = new Set();
   (Array.isArray(list) ? list : []).forEach((entry) => {
-    const sanitized = sanitizeCorrelation(entry, featureKeys);
+    const sanitized = sanitizeCorrelation(entry, featureKeys, options);
     if (sanitized && !seen.has(sanitized.id)) {
       seen.add(sanitized.id);
       result.push(sanitized);
@@ -59,6 +115,7 @@ export function sanitizeCorrelationList(list = [], featureKeys = []) {
 export function generateSyntheticDataset({
   correlations = [],
   featureKeys = [],
+  positionalFeatures = [],
   baseSampleBuffer = null,
   baseSampleCount = 0,
   baseDims = 0,
@@ -68,12 +125,16 @@ export function generateSyntheticDataset({
   noise = 0.05,
   seed = Date.now(),
 }) {
-  const sanitized = sanitizeCorrelationList(correlations, featureKeys);
+  const sanitized = sanitizeCorrelationList(correlations, featureKeys, {
+    positionalFeatures,
+  });
   const totalInputs = baseDims + audioDims;
   const inputs = new Float32Array(sampleCount * totalInputs);
   const targets = new Float32Array(sampleCount * outputSize);
   const featureBuffer = new Float32Array(sampleCount * audioDims);
+  const baseFeatureBuffer = baseDims ? new Float32Array(sampleCount * baseDims) : null;
   const rng = createRng(seed);
+  const baseStats = computeBaseStats(baseSampleBuffer, baseSampleCount, baseDims);
 
   const pickBaseRow = () => {
     if (!baseSampleBuffer || !baseSampleCount || !baseDims) {
@@ -89,6 +150,9 @@ export function generateSyntheticDataset({
     for (let i = 0; i < baseDims; i += 1) {
       const value = baseRow ? baseRow[i] : rng() * 2 - 1;
       inputs[sample * totalInputs + i] = value;
+      if (baseFeatureBuffer) {
+        baseFeatureBuffer[sample * baseDims + i] = value;
+      }
     }
 
     for (let f = 0; f < audioDims; f += 1) {
@@ -103,10 +167,23 @@ export function generateSyntheticDataset({
     }
 
     sanitized.forEach((corr) => {
-      const featureIndex = corr.featureIndex ?? featureKeys.indexOf(corr.featureKey);
-      if (featureIndex < 0) return;
-      const featureValue = featureBuffer[sample * audioDims + featureIndex];
-      const normalized = (featureValue - 0.5) * 2;
+      let normalized = 0;
+      if (corr.source === CORRELATION_FEATURE_SOURCES.PARTICLE) {
+        if (!baseFeatureBuffer || !Number.isInteger(corr.baseIndex)) {
+          return;
+        }
+        const baseIndex = corr.baseIndex;
+        if (baseIndex < 0 || baseIndex >= baseDims) {
+          return;
+        }
+        const baseValue = baseFeatureBuffer[sample * baseDims + baseIndex];
+        normalized = normalizeBaseFeatureValue(baseValue, baseIndex, baseStats);
+      } else {
+        const featureIndex = corr.featureIndex ?? featureKeys.indexOf(corr.featureKey);
+        if (featureIndex < 0) return;
+        const featureValue = featureBuffer[sample * audioDims + featureIndex];
+        normalized = (featureValue - 0.5) * 2;
+      }
       const signed = corr.polarity === 'inverse' ? -normalized : normalized;
       const contribution = signed * corr.strength;
       const outputIndex = corr.targetIndex;
@@ -120,12 +197,14 @@ export function generateSyntheticDataset({
     inputs,
     targets,
     featureBuffer,
+    baseFeatureBuffer,
     sampleCount,
     totalInputs,
     audioDims,
     baseDims,
     outputSize,
     correlations: sanitized,
+    baseStats,
   };
 }
 
@@ -160,26 +239,44 @@ export function computePearsonCorrelation(seriesA = [], seriesB = []) {
 
 export function evaluateCorrelationAchievement({
   featureBuffer,
+  baseFeatureBuffer = null,
   predictionBuffer,
   sampleCount,
   audioDims,
+  baseDims = 0,
   outputSize,
   featureKeys,
   correlations = [],
+  baseStats = null,
 }) {
   if (!sampleCount || !audioDims || !outputSize) {
     return [];
   }
   return correlations.map((corr) => {
-    const featureIndex = corr.featureIndex ?? featureKeys.indexOf(corr.featureKey);
-    if (featureIndex < 0) {
-      return { ...corr, achieved: 0 };
-    }
     const featureSeries = new Array(sampleCount);
     const predictionSeries = new Array(sampleCount);
-    for (let i = 0; i < sampleCount; i += 1) {
-      featureSeries[i] = featureBuffer[i * audioDims + featureIndex];
-      predictionSeries[i] = predictionBuffer[i * outputSize + corr.targetIndex];
+    if (corr.source === CORRELATION_FEATURE_SOURCES.PARTICLE) {
+      if (!baseFeatureBuffer || !Number.isInteger(corr.baseIndex)) {
+        return { ...corr, achieved: 0 };
+      }
+      const baseIndex = corr.baseIndex;
+      if (baseIndex < 0 || baseIndex >= baseDims) {
+        return { ...corr, achieved: 0 };
+      }
+      for (let i = 0; i < sampleCount; i += 1) {
+        const raw = baseFeatureBuffer[i * baseDims + baseIndex];
+        featureSeries[i] = normalizeBaseFeatureValue(raw, baseIndex, baseStats);
+        predictionSeries[i] = predictionBuffer[i * outputSize + corr.targetIndex];
+      }
+    } else {
+      const featureIndex = corr.featureIndex ?? featureKeys.indexOf(corr.featureKey);
+      if (featureIndex < 0) {
+        return { ...corr, achieved: 0 };
+      }
+      for (let i = 0; i < sampleCount; i += 1) {
+        featureSeries[i] = featureBuffer[i * audioDims + featureIndex];
+        predictionSeries[i] = predictionBuffer[i * outputSize + corr.targetIndex];
+      }
     }
     const achieved = computePearsonCorrelation(featureSeries, predictionSeries);
     return { ...corr, achieved };

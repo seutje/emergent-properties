@@ -18,6 +18,9 @@ export class MLPTrainingManager extends BaseModule {
     super('MLPTrainingManager');
     this.model = options.model || null;
     this.featureKeys = options.featureKeys || FEATURE_KEYS;
+    this.positionalFeatures = Array.isArray(options.positionalFeatures)
+      ? options.positionalFeatures
+      : [];
     this.baseDims = options.baseDims || 0;
     this.audioDims = options.audioDims || this.featureKeys.length;
     this.correlations = [];
@@ -72,7 +75,9 @@ export class MLPTrainingManager extends BaseModule {
   }
 
   setCorrelations(list = []) {
-    this.correlations = sanitizeCorrelationList(list, this.featureKeys);
+    this.correlations = sanitizeCorrelationList(list, this.featureKeys, {
+      positionalFeatures: this.positionalFeatures,
+    });
     this._emit('correlations', this.correlations);
     return this.correlations;
   }
@@ -136,6 +141,7 @@ export class MLPTrainingManager extends BaseModule {
         outputActivation: modelConfig.outputActivation,
       },
       training: mergedOptions,
+      positionalFeatures: this.positionalFeatures,
     };
     if (Array.isArray(baseWeights) && baseWeights.length) {
       payload.baseWeights = baseWeights;

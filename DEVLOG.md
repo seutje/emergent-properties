@@ -95,3 +95,7 @@
 
 ## 2025-11-09
 - Added a Finetune button to the training panel that snapshots the active MLP weights, feeds them into the training manager, and lets the worker resume training from the current model instead of random init—complete with button-state wiring, PLAN updates, and a full Jest run to keep coverage green.
+
+## 2025-11-08
+- Added particle positional inputs (x/y/z/dist) to the training correlations picker, plumbed the metadata through the training manager/worker so positional drivers synthesize targets correctly, and grouped the UI select into audio vs particle options.
+- Updated the synthetic dataset builder + achievement metrics to normalize base particle features, propagate them through snapshots, and expanded the Jest suite (`npm test -- js/ml/MLPTrainingUtils.test.js`) to cover the new pathways.

@@ -93,12 +93,15 @@ async function finalizeSession(context, status = 'completed') {
 
   const achieved = evaluateCorrelationAchievement({
     featureBuffer: context.dataset.featureBuffer,
+    baseFeatureBuffer: context.dataset.baseFeatureBuffer,
     predictionBuffer,
     sampleCount: context.dataset.sampleCount,
     audioDims: context.dataset.audioDims,
+    baseDims: context.dataset.baseDims,
     outputSize: context.dataset.outputSize,
     featureKeys: context.featureKeys,
     correlations: context.dataset.correlations,
+    baseStats: context.dataset.baseStats,
   });
 
   const metadata = {
@@ -209,6 +212,7 @@ async function handleStart(payload = {}) {
   const dataset = generateSyntheticDataset({
     correlations: payload.correlations || [],
     featureKeys,
+    positionalFeatures: payload.positionalFeatures || [],
     baseSampleBuffer: payload.baseSamples || null,
     baseSampleCount: payload.baseSampleCount || 0,
     baseDims: payload.baseDims || 0,

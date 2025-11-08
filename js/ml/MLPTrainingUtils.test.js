@@ -7,6 +7,7 @@ import {
   evaluateCorrelationAchievement,
   DEFAULT_CORRELATION,
 } from './MLPTrainingUtils.js';
+import { PARTICLE_POSITIONAL_FEATURES } from './MLPTrainingFeatures.js';
 
 describe('MLPTrainingUtils', () => {
   it('sanitizes correlations and clamps strength', () => {
@@ -66,5 +67,60 @@ describe('MLPTrainingUtils', () => {
       correlations: dataset.correlations,
     });
     expect(achieved[0].achieved).toBeGreaterThan(0.6);
+  });
+
+  it('supports positional particle features in correlations', () => {
+    const positionalFeature = PARTICLE_POSITIONAL_FEATURES[0];
+    const correlation = DEFAULT_CORRELATION(positionalFeature.id, PARTICLE_PARAMETER_TARGETS[1].id);
+    correlation.strength = 0.8;
+    const sampleCount = 256;
+    const baseDims = 4;
+    const audioDims = FEATURE_KEYS.length;
+    const outputSize = PARTICLE_PARAMETER_TARGETS.length;
+    const baseSampleBuffer = new Float32Array(baseDims * sampleCount);
+    for (let i = 0; i < sampleCount; i += 1) {
+      const offset = i * baseDims;
+      baseSampleBuffer[offset] = -1 + (2 * i) / sampleCount;
+      baseSampleBuffer[offset + 1] = (i % 16) / 16;
+      baseSampleBuffer[offset + 2] = 0.5;
+      baseSampleBuffer[offset + 3] = Math.abs(baseSampleBuffer[offset]);
+    }
+    const dataset = generateSyntheticDataset({
+      correlations: [correlation],
+      featureKeys: FEATURE_KEYS,
+      positionalFeatures: PARTICLE_POSITIONAL_FEATURES,
+      baseSampleBuffer,
+      baseSampleCount: sampleCount,
+      baseDims,
+      audioDims,
+      outputSize,
+      sampleCount,
+      noise: 0.02,
+      seed: 77,
+    });
+    const [sanitized] = dataset.correlations;
+    expect(sanitized.baseIndex).toBe(positionalFeature.baseIndex);
+    const series = [];
+    const targets = [];
+    for (let i = 0; i < sampleCount; i += 1) {
+      series.push(dataset.baseFeatureBuffer[i * baseDims + sanitized.baseIndex]);
+      targets.push(dataset.targets[i * outputSize + sanitized.targetIndex]);
+    }
+    const corr = computePearsonCorrelation(series, targets);
+    expect(Math.abs(corr)).toBeGreaterThan(0.5);
+    const achieved = evaluateCorrelationAchievement({
+      featureBuffer: dataset.featureBuffer,
+      baseFeatureBuffer: dataset.baseFeatureBuffer,
+      predictionBuffer: dataset.targets,
+      sampleCount,
+      audioDims,
+      baseDims,
+      outputSize,
+      featureKeys: FEATURE_KEYS,
+      correlations: dataset.correlations,
+      baseStats: dataset.baseStats,
+    });
+    expect(achieved[0].featureKey).toBe(positionalFeature.id);
+    expect(Math.abs(achieved[0].achieved)).toBeGreaterThan(0.5);
   });
 });

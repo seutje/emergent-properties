@@ -33,7 +33,17 @@ export class TrainingPanel extends BaseModule {
     this.mlpModel = options.mlpModel || null;
     this.mlpController = options.mlpController || null;
     this.featureKeys = options.featureKeys || FEATURE_KEYS;
-    this.featureLabels = options.featureLabels || {};
+    this.positionalFeatures = Array.isArray(options.positionalFeatures) ? options.positionalFeatures : [];
+    const positionalLabels = this.positionalFeatures.reduce((acc, feature) => {
+      if (feature?.id) {
+        acc[feature.id] = feature.label || feature.id;
+      }
+      return acc;
+    }, {});
+    this.featureLabels = {
+      ...positionalLabels,
+      ...(options.featureLabels || {}),
+    };
     this.targetLabels = PARTICLE_PARAMETER_TARGETS.reduce((acc, target) => {
       acc[target.id] = target.label;
       return acc;
@@ -134,6 +144,7 @@ export class TrainingPanel extends BaseModule {
     const sanitized = sanitizeCorrelationList(
       existing.length ? existing : [DEFAULT_CORRELATION(this.featureKeys[0], PARTICLE_PARAMETER_TARGETS[0].id)],
       this.featureKeys,
+      this._getSanitizeOptions(),
     );
     this.state.correlations = sanitized;
     const opt = this.trainingManager.getTrainingOptions?.();
@@ -316,10 +327,16 @@ export class TrainingPanel extends BaseModule {
     if (this.state.correlations.length >= this.maxCorrelations) {
       return;
     }
-    const feature = this.featureKeys[this.state.correlations.length % this.featureKeys.length];
+    const feature = this.featureKeys.length
+      ? this.featureKeys[this.state.correlations.length % this.featureKeys.length]
+      : this.positionalFeatures[0]?.id || this.featureKeys[0];
     const target = PARTICLE_PARAMETER_TARGETS[this.state.correlations.length % PARTICLE_PARAMETER_TARGETS.length];
     const next = DEFAULT_CORRELATION(feature, target.id);
-    this.state.correlations = sanitizeCorrelationList([...this.state.correlations, next], this.featureKeys);
+    this.state.correlations = sanitizeCorrelationList(
+      [...this.state.correlations, next],
+      this.featureKeys,
+      this._getSanitizeOptions(),
+    );
     this._persistCorrelations();
     this._renderCorrelations();
   }
@@ -343,17 +360,11 @@ export class TrainingPanel extends BaseModule {
     const row = createElement('div', 'training-panel__correlation-row');
     row.dataset.index = String(index);
 
-    const featureSelect = document.createElement('select');
-    this.featureKeys.forEach((key) => {
-      const option = document.createElement('option');
-      option.value = key;
-      option.textContent = this.featureLabels[key] || key;
-      option.selected = key === corr.featureKey;
-      featureSelect.appendChild(option);
-    });
+    const featureSelect = this._createFeatureSelect(corr.featureKey);
     featureSelect.addEventListener('change', () => {
       this.state.correlations[index].featureKey = featureSelect.value;
       this._persistCorrelations();
+      this._renderCorrelations();
     });
 
     const targetSelect = document.createElement('select');
@@ -416,9 +427,46 @@ export class TrainingPanel extends BaseModule {
   }
 
   _persistCorrelations() {
-    const sanitized = sanitizeCorrelationList(this.state.correlations, this.featureKeys);
+    const sanitized = sanitizeCorrelationList(this.state.correlations, this.featureKeys, this._getSanitizeOptions());
     this.state.correlations = sanitized;
     this.trainingManager.setCorrelations(sanitized);
+  }
+
+  _createFeatureSelect(selectedKey) {
+    const select = document.createElement('select');
+    if (this.featureKeys.length) {
+      const audioGroup = document.createElement('optgroup');
+      audioGroup.label = 'Audio Features';
+      this.featureKeys.forEach((key) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = this.featureLabels[key] || key;
+        if (key === selectedKey) {
+          option.selected = true;
+        }
+        audioGroup.appendChild(option);
+      });
+      select.appendChild(audioGroup);
+    }
+    if (this.positionalFeatures.length) {
+      const particleGroup = document.createElement('optgroup');
+      particleGroup.label = 'Particle Parameters';
+      this.positionalFeatures.forEach((feature) => {
+        const option = document.createElement('option');
+        option.value = feature.id;
+        option.textContent = feature.label || feature.id;
+        if (feature.id === selectedKey) {
+          option.selected = true;
+        }
+        particleGroup.appendChild(option);
+      });
+      select.appendChild(particleGroup);
+    }
+    return select;
+  }
+
+  _getSanitizeOptions() {
+    return { positionalFeatures: this.positionalFeatures };
   }
 
   async _handleStart() {

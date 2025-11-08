@@ -8,6 +8,7 @@ import { loadDefaultModelSnapshot } from './ml/ModelSnapshotLoader.js';
 import { UIController } from './ui/UIController.js';
 import { PARTICLE_PARAMETER_COUNT } from './ml/MLPTrainingTargets.js';
 import { upgradeModelSnapshot } from './ml/ModelSnapshotUpgrade.js';
+import { PARTICLE_POSITIONAL_FEATURES } from './ml/MLPTrainingFeatures.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -102,6 +103,7 @@ async function bootstrap() {
     audioDims: FEATURE_KEYS.length,
     baseDims: mlpController.baseDims,
     getBaseSamples: (count = 512) => mlpController.getBaseSamples(count),
+    positionalFeatures: PARTICLE_POSITIONAL_FEATURES,
   });
   configureTrainingManagerFromSnapshot(trainingManager, defaultSnapshot);
   trainingManager.init();
