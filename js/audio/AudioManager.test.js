@@ -81,6 +81,28 @@ describe('AudioManager', () => {
     expect(errors[0].message).toMatch(/audio file/i);
     consoleSpy.mockRestore();
   });
+
+  it('auto-plays the next bundled track after a short delay when a song ends', async () => {
+    const tracks = [
+      { id: 'track-01', title: 'Track One', url: '/one.mp3' },
+      { id: 'track-02', title: 'Track Two', url: '/two.mp3' },
+    ];
+    const { manager, context } = createManager({
+      tracks,
+      autoAdvanceDelayMs: 25,
+    });
+
+    await manager.playTrack(tracks[0].id);
+    const [source] = context.createdSources;
+    expect(source).toBeTruthy();
+    const waitForSecondTrack = waitForTrack(manager, tracks[1].id);
+
+    source.onended(); // schedules the delayed autoplay
+
+    await waitForSecondTrack;
+    expect(manager.getState().currentTrack.id).toBe(tracks[1].id);
+    expect(manager.getState().playing).toBe(true);
+  });
 });
 
 /* Helpers */
@@ -104,6 +126,7 @@ function createManager(overrides = {}) {
 
   const manager = new AudioManager({
     tracks: overrides.tracks || [DEFAULT_TRACK],
+    autoAdvanceDelayMs: overrides.autoAdvanceDelayMs,
     contextFactory: () => context,
     fetch: fetchImpl,
     fileInput,
@@ -226,4 +249,15 @@ class MockAudioBuffer {
   constructor(duration = 60) {
     this.duration = duration;
   }
+}
+
+function waitForTrack(manager, targetId) {
+  return new Promise((resolve) => {
+    const dispose = manager.on(AudioManagerEvents.TRACK_LOADED, ({ track }) => {
+      if (track.id === targetId) {
+        dispose();
+        resolve();
+      }
+    });
+  });
 }

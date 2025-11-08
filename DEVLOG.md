@@ -58,3 +58,6 @@
 
 ## 2025-11-08
 - Removed the correlation cap in `TrainingPanel` by defaulting the limit to infinity, so the Training UI now allows users to stack as many feature→parameter correlations as they need before launching a run.
+
+## 2025-11-08
+- Added a 1-second delayed auto-advance to `AudioManager` so bundled tracks seamlessly roll into the next song, and backfilled Jest coverage to lock in the behavior (with a shorter delay for the test harness).

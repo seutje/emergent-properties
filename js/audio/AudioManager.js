@@ -21,6 +21,7 @@ const DEFAULT_OPTIONS = {
   initialVolume: 0.9,
   analyser: DEFAULT_ANALYSER_CONFIG,
   dragActiveClass: 'audio-drop-active',
+  autoAdvanceDelayMs: 1000,
 };
 
 const AUDIO_MIME_PATTERN = /^audio\//i;
@@ -71,6 +72,10 @@ export class AudioManager extends BaseModule {
     this._currentTrackMeta = null;
     this._pauseOffset = 0;
     this._startTime = 0;
+    this._autoAdvanceTimer = null;
+    this.autoAdvanceDelayMs = Number.isFinite(this.options.autoAdvanceDelayMs)
+      ? this.options.autoAdvanceDelayMs
+      : DEFAULT_OPTIONS.autoAdvanceDelayMs;
 
     this.state = {
       playing: false,
@@ -340,6 +345,7 @@ export class AudioManager extends BaseModule {
     const offset = Math.min(Math.max(options.offset || 0, 0), buffer.duration);
 
     this._stopSource();
+    this._clearAutoAdvanceTimer();
     this._currentBuffer = buffer;
     this._currentTrackMeta = meta;
 
@@ -347,9 +353,11 @@ export class AudioManager extends BaseModule {
     sourceNode.buffer = buffer;
     sourceNode.connect(this.gainNode);
     sourceNode.onended = () => {
+      const endedTrack = this.state.currentTrack;
       this._pauseOffset = 0;
       this._updateState({ playing: false });
-      this.emit(AudioManagerEvents.TRACK_ENDED, { track: this.state.currentTrack });
+      this.emit(AudioManagerEvents.TRACK_ENDED, { track: endedTrack });
+      this._scheduleAutoAdvance(endedTrack);
     };
 
     sourceNode.start(0, offset);
@@ -379,6 +387,7 @@ export class AudioManager extends BaseModule {
       this.sourceNode.disconnect();
       this.sourceNode = null;
     }
+    this._clearAutoAdvanceTimer();
   }
 
   _getCurrentPosition() {
@@ -477,5 +486,35 @@ export class AudioManager extends BaseModule {
   _emitError(error) {
     console.error('[AudioManager]', error);
     this.emit(AudioManagerEvents.ERROR, { error });
+  }
+
+  _clearAutoAdvanceTimer() {
+    if (this._autoAdvanceTimer) {
+      clearTimeout(this._autoAdvanceTimer);
+      this._autoAdvanceTimer = null;
+    }
+  }
+
+  _scheduleAutoAdvance(track) {
+    if (!track || track.source !== 'bundled') {
+      return;
+    }
+    const tracks = this.getTracks();
+    if (!Array.isArray(tracks) || tracks.length < 2) {
+      return;
+    }
+    const currentIndex = tracks.findIndex((item) => item.id === track.id);
+    if (currentIndex < 0 || currentIndex + 1 >= tracks.length) {
+      return;
+    }
+    const nextTrack = tracks[currentIndex + 1];
+    if (!nextTrack) {
+      return;
+    }
+    this._clearAutoAdvanceTimer();
+    this._autoAdvanceTimer = setTimeout(() => {
+      this._autoAdvanceTimer = null;
+      this.playTrack(nextTrack.id).catch((error) => this._emitError(error));
+    }, this.autoAdvanceDelayMs);
   }
 }
