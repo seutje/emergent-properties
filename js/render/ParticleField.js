@@ -3,6 +3,8 @@ import { BaseModule } from '../core/BaseModule.js';
 import { particleVertexShader, particleFragmentShader, createParticleUniforms } from './Shaders.js';
 import { generateParticleAttributes } from './particleUtils.js';
 
+const WOBBLE_DAMPING = 0.5;
+
 const DEFAULT_OPTIONS = {
   count: 32768,
   spacing: 0.22,
@@ -110,7 +112,9 @@ export class ParticleField extends BaseModule {
     this.uniforms.uTime.value = this.elapsed;
     this.points.rotation.y += delta * this.options.rotationSpeed;
     this.points.rotation.x =
-      Math.sin(this.elapsed * this.options.wobbleFrequency) * this.options.wobbleStrength;
+      Math.sin(this.elapsed * this.options.wobbleFrequency) *
+      this.options.wobbleStrength *
+      WOBBLE_DAMPING;
   }
 
   setPixelRatio(pixelRatio = 1) {

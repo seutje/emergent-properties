@@ -114,3 +114,7 @@
 ## 2025-11-09
 - Embedded the remaining TrainingPanel (correlation editor, results, import/export) directly inside the lil-gui “Training” folder, so there’s no separate floating overlay and every training workflow now lives in one pane. The embedded variant reuses the existing styling but drops the redundant status bar since lil-gui now shows those stats.
 - Added an inline container + CSS overrides to keep the embedded panel flush with the GUI layout, and updated the panel itself to support optional headers/status bars and arbitrary mount targets for future reuse.
+
+## 2025-11-09
+- Halved the particle field wobble by introducing a damping scalar inside `ParticleField.update`, so existing wobble settings/ML outputs now produce half the tilt without forcing preset changes.
+- Skipped automated tests because the adjustment only affects the visual rotation math; verified by code inspection.
