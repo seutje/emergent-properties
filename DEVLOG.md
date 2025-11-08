@@ -65,3 +65,6 @@
 ## 2025-11-08
 - Bootstrapped a `ModelSnapshotLoader` (plus Jest coverage) that fetches and validates `assets/models/default.json`, ensuring we can hydrate the curated snapshot with friendly errors when the asset is unreachable.
 - Updated `main.js` to load that snapshot on startup, apply its weights/config to the live MLP, and seed the training manager with the stored correlations/options so the app defaults to the approved baseline without manual imports.
+
+## 2025-11-08
+- Switched the feature extractor’s default EMA toggle off so fresh sessions show unsmoothed feature spikes; the lil-gui control still allows enabling smoothing when desired.

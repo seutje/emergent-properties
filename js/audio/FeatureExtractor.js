@@ -15,7 +15,7 @@ export const FEATURE_KEYS = [
 const DEFAULT_OPTIONS = {
   sampleRate: 30, // target feature refresh rate (Hz)
   smoothing: {
-    enabled: true,
+    enabled: false,
     alpha: 0.25,
   },
   decimation: {

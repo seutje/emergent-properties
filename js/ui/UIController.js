@@ -21,7 +21,7 @@ const BUILTIN_PRESETS = [
     name: 'Chill Bloom',
     builtin: true,
     data: {
-      features: { sampleRate: 24, smoothing: true, smoothingAlpha: 0.4, decimate: true },
+      features: { sampleRate: 24, smoothing: false, smoothingAlpha: 0.4, decimate: true },
       particles: {
         rotationSpeed: 0.04,
         wobbleStrength: 0.06,
@@ -83,7 +83,7 @@ const BUILTIN_PRESETS = [
     name: 'Minimal Drift',
     builtin: true,
     data: {
-      features: { sampleRate: 18, smoothing: true, smoothingAlpha: 0.6, decimate: true },
+      features: { sampleRate: 18, smoothing: false, smoothingAlpha: 0.6, decimate: true },
       particles: {
         rotationSpeed: 0.015,
         wobbleStrength: 0.02,
