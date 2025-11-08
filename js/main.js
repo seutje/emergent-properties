@@ -4,6 +4,7 @@ import { Renderer } from './render/Renderer.js';
 import { MLPModel } from './ml/MLPModel.js';
 import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
 import { MLPTrainingManager } from './ml/MLPTrainingManager.js';
+import { loadDefaultModelSnapshot } from './ml/ModelSnapshotLoader.js';
 import { UIController } from './ui/UIController.js';
 
 const BUNDLED_TRACKS = [
@@ -19,6 +20,16 @@ const BUNDLED_TRACKS = [
   { id: 'track-10', title: 'Recursive Dreams', url: './assets/audio/10 - Recursive Dreams.mp3' },
 ];
 
+const FALLBACK_MLP_CONFIG = {
+  inputSize: 17,
+  outputSize: 9,
+  hiddenLayers: [32],
+  backend: 'webgl',
+  activation: 'relu',
+  outputActivation: 'tanh',
+  seed: 1337,
+};
+
 bootstrap().catch((error) => {
   console.error('[main] Failed to bootstrap application', error);
 });
@@ -29,6 +40,8 @@ async function bootstrap() {
   if (!appRoot || !fileInput) {
     throw new Error('Required root elements (#app, #file-input) are missing from the DOM.');
   }
+
+  const defaultSnapshot = await loadInitialModelSnapshot();
 
   const renderer = new Renderer(appRoot);
   renderer.init();
@@ -44,14 +57,9 @@ async function bootstrap() {
   const featureExtractor = new FeatureExtractor(audioManager.getAnalyser());
   featureExtractor.init();
 
-  const mlpModel = new MLPModel({
-    inputSize: 17,
-    outputSize: 9,
-    hiddenLayers: [32],
-    backend: 'webgl',
-    activation: 'relu',
-  });
+  const mlpModel = new MLPModel(defaultSnapshot?.config || FALLBACK_MLP_CONFIG);
   await mlpModel.init();
+  await applySnapshotWeights(mlpModel, defaultSnapshot);
 
   const mlpController = new MLPOrchestrator({
     model: mlpModel,
@@ -71,6 +79,7 @@ async function bootstrap() {
     baseDims: mlpController.baseDims,
     getBaseSamples: (count = 512) => mlpController.getBaseSamples(count),
   });
+  configureTrainingManagerFromSnapshot(trainingManager, defaultSnapshot);
   trainingManager.init();
   trainingManager.on('result', async (payload) => {
     if (payload?.weights) {
@@ -139,6 +148,65 @@ async function bootstrap() {
   }
 
   requestAnimationFrame(loop);
+}
+
+async function loadInitialModelSnapshot() {
+  try {
+    return await loadDefaultModelSnapshot();
+  } catch (error) {
+    console.warn('[main] Unable to load default model snapshot.', error);
+    return null;
+  }
+}
+
+async function applySnapshotWeights(model, snapshot) {
+  if (!snapshot?.weights?.length) {
+    return;
+  }
+  try {
+    await model.applyWeights(snapshot.weights);
+  } catch (error) {
+    console.warn('[main] Failed to apply snapshot weights.', error);
+  }
+}
+
+function configureTrainingManagerFromSnapshot(trainingManager, snapshot) {
+  if (!trainingManager || !snapshot) {
+    return;
+  }
+  const correlations = snapshot.metadata?.correlations;
+  if (Array.isArray(correlations) && correlations.length) {
+    trainingManager.setCorrelations(correlations);
+  }
+  const trainingOptions = extractTrainingOptions(snapshot);
+  if (trainingOptions) {
+    trainingManager.updateTrainingOptions(trainingOptions);
+  }
+}
+
+function extractTrainingOptions(snapshot) {
+  const source = snapshot?.metadata?.training?.metadata || snapshot?.metadata?.training;
+  if (!source) {
+    return null;
+  }
+  const map = {
+    epochs: 'epochs',
+    batchSize: 'batchSize',
+    learningRate: 'learningRate',
+    sampleCount: 'sampleCount',
+    noise: 'noise',
+    seed: 'seed',
+  };
+  const options = {};
+  let updated = false;
+  Object.entries(map).forEach(([optionKey, sourceKey]) => {
+    const value = source[sourceKey];
+    if (Number.isFinite(value)) {
+      options[optionKey] = value;
+      updated = true;
+    }
+  });
+  return updated ? options : null;
 }
 
 function createAudioGate(manager) {

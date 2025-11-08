@@ -61,3 +61,7 @@
 
 ## 2025-11-08
 - Added a 1-second delayed auto-advance to `AudioManager` so bundled tracks seamlessly roll into the next song, and backfilled Jest coverage to lock in the behavior (with a shorter delay for the test harness).
+
+## 2025-11-08
+- Bootstrapped a `ModelSnapshotLoader` (plus Jest coverage) that fetches and validates `assets/models/default.json`, ensuring we can hydrate the curated snapshot with friendly errors when the asset is unreachable.
+- Updated `main.js` to load that snapshot on startup, apply its weights/config to the live MLP, and seed the training manager with the stored correlations/options so the app defaults to the approved baseline without manual imports.

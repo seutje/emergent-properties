@@ -83,6 +83,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [ ] [Human] Approve final visual storytelling and audio-reactive feel.
 - [ ] [AI] Prepare release checklist (README updates, asset credits, deploy instructions).
 - [x] [AI] Add in-browser training workflow with user-defined correlations plus model import/export tooling.
+- [x] [AI] Load curated default MLP snapshot (assets/models/default.json) on boot to sync baseline model + training settings.
 
 **Acceptance criteria:**
 - App meets DESIGN.md §19 acceptance criteria.
