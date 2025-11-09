@@ -67,6 +67,16 @@ body {
   border-color: rgba(125, 225, 255, 0.8);
 }
 
+.audio-btn--ghost {
+  background: rgba(12, 25, 38, 0.55);
+  border-color: rgba(125, 225, 255, 0.25);
+}
+
+.audio-btn--ghost:hover,
+.audio-btn--ghost:focus-visible {
+  background: rgba(125, 225, 255, 0.15);
+}
+
 .audio-btn:disabled,
 .audio-select:disabled {
   opacity: 0.5;

@@ -4,12 +4,18 @@ import { Renderer } from './render/Renderer.js';
 import { MLPModel } from './ml/MLPModel.js';
 import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
 import { MLPTrainingManager } from './ml/MLPTrainingManager.js';
-import { loadDefaultModelSnapshot, loadRandomSnapshotFromPool } from './ml/ModelSnapshotLoader.js';
+import {
+  loadDefaultModelSnapshot,
+  loadModelSnapshot,
+  loadRandomSnapshotFromPool,
+  MODEL_POOL_SNAPSHOT_URLS,
+} from './ml/ModelSnapshotLoader.js';
 import { UIController } from './ui/UIController.js';
 import { PARTICLE_PARAMETER_COUNT } from './ml/MLPTrainingTargets.js';
 import { upgradeModelSnapshot } from './ml/ModelSnapshotUpgrade.js';
 import { PARTICLE_POSITIONAL_FEATURES } from './ml/MLPTrainingFeatures.js';
 import { randomizeActiveModel } from './ml/randomizeActiveModel.js';
+import { ModelCycler } from './ml/ModelCycler.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -137,18 +143,29 @@ async function bootstrap() {
   });
   uiController.init();
 
+  const modelCycler = new ModelCycler(MODEL_POOL_SNAPSHOT_URLS);
   const AUTO_RANDOMIZE_REASONS = new Set(['startup', 'track', 'upload']);
+
+  const applyRandomization = async (payload = {}) => {
+    const result = await randomizeActiveModel({
+      mlpModel,
+      mlpController,
+      trainingManager,
+      uiController,
+      ...payload,
+    });
+    if (payload.snapshotUrl) {
+      modelCycler.syncTo(payload.snapshotUrl);
+    }
+    return result;
+  };
 
   const randomizeModel = async (details = {}) => {
     const reason = details?.reason || 'manual';
     if (AUTO_RANDOMIZE_REASONS.has(reason)) {
       try {
         const { snapshot, url } = await loadRandomSnapshotFromPool();
-        return await randomizeActiveModel({
-          mlpModel,
-          mlpController,
-          trainingManager,
-          uiController,
+        return await applyRandomization({
           ...details,
           snapshot,
           snapshotUrl: url,
@@ -159,17 +176,27 @@ async function bootstrap() {
     }
 
     try {
-      return await randomizeActiveModel({
-        mlpModel,
-        mlpController,
-        trainingManager,
-        uiController,
-        ...details,
-      });
+      return await applyRandomization(details);
     } catch (error) {
       console.error('[main] Failed to randomize model', error);
       return null;
     }
+  };
+
+  const loadNextCuratedModel = async () => {
+    if (!modelCycler.hasNext()) {
+      throw new Error('No curated models are available.');
+    }
+    const url = modelCycler.peek();
+    if (!url) {
+      throw new Error('No curated models are available.');
+    }
+    const snapshot = await loadModelSnapshot(url);
+    await applyRandomization({
+      reason: 'next-model',
+      snapshot,
+      snapshotUrl: url,
+    });
   };
 
   await randomizeModel({ reason: 'startup' });
@@ -177,7 +204,9 @@ async function bootstrap() {
   const dropOverlay = createDropOverlay();
   document.body.appendChild(dropOverlay);
 
-  const transport = createTransportControls(audioManager, DEFAULT_VOLUME_PERCENT);
+  const transport = createTransportControls(audioManager, DEFAULT_VOLUME_PERCENT, {
+    onNextModel: loadNextCuratedModel,
+  });
   document.body.appendChild(transport);
 
   const gate = createAudioGate(audioManager);
@@ -323,10 +352,11 @@ function createAudioGate(manager) {
   };
 }
 
-function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_PERCENT) {
+function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_PERCENT, options = {}) {
   const wrapper = document.createElement('section');
   wrapper.className = 'audio-transport';
   wrapper.setAttribute('aria-label', 'Audio transport controls');
+  const onNextModel = typeof options.onNextModel === 'function' ? options.onNextModel : null;
 
   const playButton = document.createElement('button');
   playButton.type = 'button';
@@ -414,6 +444,12 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
 
   repeatLabel.append(repeatToggle, repeatText);
 
+  const nextModelButton = document.createElement('button');
+  nextModelButton.type = 'button';
+  nextModelButton.className = 'audio-btn audio-btn--ghost';
+  nextModelButton.setAttribute('aria-label', 'Load next curated model');
+  nextModelButton.textContent = 'Next model';
+
   const tracks = manager.getTracks();
   const customOptions = new Map();
 
@@ -470,6 +506,29 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   uploadButton.addEventListener('click', () => manager.triggerFilePicker());
   trackSelect.addEventListener('change', (event) => manager.playTrack(event.target.value));
   repeatToggle.addEventListener('change', (event) => manager.setRepeat(event.target.checked));
+  if (onNextModel) {
+    nextModelButton.addEventListener('click', async () => {
+      if (nextModelButton.disabled) {
+        return;
+      }
+      const previousLabel = nextModelButton.textContent;
+      nextModelButton.disabled = true;
+      nextModelButton.textContent = 'Loading...';
+      try {
+        await onNextModel();
+      } catch (error) {
+        console.error('[Transport] Failed to load next model', error);
+        status.textContent = error?.message || 'Failed to load model';
+        wrapper.classList.add('has-error');
+        setTimeout(() => wrapper.classList.remove('has-error'), 2000);
+      } finally {
+        nextModelButton.textContent = previousLabel;
+        nextModelButton.disabled = false;
+      }
+    });
+  } else {
+    nextModelButton.disabled = true;
+  }
 
   manager.on(AudioManagerEvents.STATE, (state) => {
     playButton.textContent = state.playing ? 'Pause' : 'Play';
@@ -526,6 +585,7 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
     volumeWrapper,
     status,
     repeatLabel,
+    nextModelButton,
   );
   return wrapper;
 }

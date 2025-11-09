@@ -147,3 +147,8 @@
 - Introduced a glyph-based text layout builder so the particle field can be remapped from its old cube into the characters of the active track, complete with deterministic seeded jitter and new defaults for text dimensions/depth.
 - Added `TextParticleLayout.test.js` to lock in the glyph mask + layout math, rewired `ParticleField` to accept `setTrackLabel`, and taught `main.js` to update the field whenever `TRACK_LOADED` fires.
 - Ran `npm test -- TextParticleLayout` to exercise the new unit tests.
+
+## 2025-11-09
+- Added a Next Model button to the glassmorphic transport bar that sequentially loads curated snapshots via a new `ModelCycler`, keeping the button in sync with random/autoloaded models so listeners can audition the full set without diving into lil-gui.
+- Wired the button through `main.js`, updated the transport styling for the new ghost action, and covered the cycler helper with `js/ml/ModelCycler.test.js`.
+- Ran `npm test -- js/ml/ModelCycler.test.js` to keep coverage green.
