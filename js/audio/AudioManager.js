@@ -22,6 +22,7 @@ const DEFAULT_OPTIONS = {
   analyser: DEFAULT_ANALYSER_CONFIG,
   dragActiveClass: 'audio-drop-active',
   autoAdvanceDelayMs: 1000,
+  repeat: false,
 };
 
 const AUDIO_MIME_PATTERN = /^audio\//i;
@@ -85,6 +86,7 @@ export class AudioManager extends BaseModule {
       isLoading: false,
       currentTrack: null,
       volume: this.options.initialVolume,
+      repeat: Boolean(this.options.repeat),
     };
   }
 
@@ -231,6 +233,15 @@ export class AudioManager extends BaseModule {
     return clamped;
   }
 
+  setRepeat(enabled) {
+    const next = Boolean(enabled);
+    if (this.state.repeat === next) {
+      return this.state.repeat;
+    }
+    this._updateState({ repeat: next });
+    return next;
+  }
+
   async handleFile(file) {
     if (!isAudioFile(file)) {
       this._emitError(new Error('Unsupported file type. Please select an audio file.'));
@@ -292,17 +303,17 @@ export class AudioManager extends BaseModule {
   _configureNodes() {
     if (!this.context || this.analyser) return;
 
-    this.gainNode = this.context.createGain();
-    this.setVolume(this.state.volume, { silent: true });
-
     this.analyser = this.context.createAnalyser();
     this.analyser.fftSize = this.options.analyser.fftSize;
     this.analyser.smoothingTimeConstant = this.options.analyser.smoothingTimeConstant;
     this.analyser.minDecibels = this.options.analyser.minDecibels;
     this.analyser.maxDecibels = this.options.analyser.maxDecibels;
 
-    this.gainNode.connect(this.analyser);
-    this.analyser.connect(this.context.destination);
+    this.gainNode = this.context.createGain();
+    this.setVolume(this.state.volume, { silent: true });
+
+    this.analyser.connect(this.gainNode);
+    this.gainNode.connect(this.context.destination);
   }
 
   _resolveTrack(idOrMeta) {
@@ -374,13 +385,19 @@ export class AudioManager extends BaseModule {
 
     const sourceNode = this.context.createBufferSource();
     sourceNode.buffer = buffer;
-    sourceNode.connect(this.gainNode);
+    sourceNode.connect(this.analyser);
     sourceNode.onended = () => {
       const endedTrack = this.state.currentTrack;
       this._pauseOffset = 0;
       this._updateState({ playing: false });
       this.emit(AudioManagerEvents.TRACK_ENDED, { track: endedTrack });
-      this._scheduleAutoAdvance(endedTrack);
+      if (this.state.repeat && endedTrack?.id) {
+        Promise.resolve()
+          .then(() => this.playTrack(endedTrack.id))
+          .catch((error) => this._emitError(error));
+      } else {
+        this._scheduleAutoAdvance(endedTrack);
+      }
     };
 
     sourceNode.start(0, offset);
@@ -538,6 +555,9 @@ export class AudioManager extends BaseModule {
   }
 
   _scheduleAutoAdvance(track) {
+    if (this.state.repeat) {
+      return;
+    }
     if (!track || track.source !== 'bundled') {
       return;
     }

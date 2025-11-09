@@ -392,6 +392,22 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
 
   volumeWrapper.append(volumeLabel, volumeSlider, volumeValue);
 
+  const repeatLabel = document.createElement('label');
+  repeatLabel.className = 'audio-repeat';
+  repeatLabel.setAttribute('title', 'Repeat current track');
+
+  const repeatToggle = document.createElement('input');
+  repeatToggle.type = 'checkbox';
+  repeatToggle.className = 'audio-repeat__input';
+  repeatToggle.setAttribute('aria-label', 'Repeat current track');
+  repeatToggle.checked = Boolean(manager.getState().repeat);
+
+  const repeatText = document.createElement('span');
+  repeatText.className = 'audio-repeat__text';
+  repeatText.textContent = 'Repeat';
+
+  repeatLabel.append(repeatToggle, repeatText);
+
   const tracks = manager.getTracks();
   const customOptions = new Map();
 
@@ -447,6 +463,7 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   stopButton.addEventListener('click', () => manager.stop());
   uploadButton.addEventListener('click', () => manager.triggerFilePicker());
   trackSelect.addEventListener('change', (event) => manager.playTrack(event.target.value));
+  repeatToggle.addEventListener('change', (event) => manager.setRepeat(event.target.checked));
 
   manager.on(AudioManagerEvents.STATE, (state) => {
     playButton.textContent = state.playing ? 'Pause' : 'Play';
@@ -474,6 +491,10 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
     } else {
       updateVolumeUi(defaultVolumePercent);
     }
+    const repeatEnabled = Boolean(state.repeat);
+    if (repeatToggle.checked !== repeatEnabled) {
+      repeatToggle.checked = repeatEnabled;
+    }
   });
 
   manager.on(AudioManagerEvents.ERROR, ({ error }) => {
@@ -491,7 +512,15 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
     trackSelect.value = track.id;
   });
 
-  wrapper.append(playButton, stopButton, trackSelect, uploadButton, volumeWrapper, status);
+  wrapper.append(
+    playButton,
+    stopButton,
+    trackSelect,
+    uploadButton,
+    volumeWrapper,
+    status,
+    repeatLabel,
+  );
   return wrapper;
 }
 

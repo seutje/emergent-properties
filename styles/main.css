@@ -143,6 +143,33 @@ body {
   color: rgba(247, 251, 255, 0.85);
 }
 
+.audio-repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid rgba(125, 225, 255, 0.2);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(247, 251, 255, 0.75);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.audio-repeat__input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #7de1ff;
+}
+
+.audio-repeat__text {
+  font-size: 0.75rem;
+}
+
 .audio-gate {
   position: fixed;
   inset: 0;

@@ -130,3 +130,11 @@
 ## 2025-11-09
 - Renamed each curated model’s `metadata.label` to match its filename (01–29) and taught the Training Panel to display the active model label, defaulting to “custom” whenever in-browser training replaces the weights.
 - Wired the randomization/import pathways to update that label ribbon and added styling for the new readout; verified `npm test -- js/ml/randomizeActiveModel.test.js` after the UI changes.
+
+## 2025-11-09
+- Rerouted the Web Audio graph so `AnalyserNode` taps the raw source before it passes through the user-controlled volume gain, preventing loudness tweaks from biasing feature extraction, and backfilled coverage via `npm test -- js/audio/AudioManager.test.js`.
+
+## 2025-11-10
+- Added a Repeat toggle to the transport row so listeners can lock the current track into a loop, complete with matching styling and state wiring in `main.js`.
+- Extended `AudioManager` with a persisted repeat flag that restarts finished tracks before any auto-advance kicks in, and taught the Jest suite to cover the new API/behavior.
+- Ran `npm test -- js/audio/AudioManager.test.js` to keep the audio pipeline coverage green after the transport upgrade.

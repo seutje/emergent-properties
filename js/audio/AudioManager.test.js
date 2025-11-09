@@ -166,6 +166,46 @@ describe('AudioManager', () => {
     expect(manager.getState().playing).toBe(true);
   });
 
+  it('toggles repeat mode via setRepeat and exposes it through state events', () => {
+    const { manager, events } = createManager();
+    expect(manager.getState().repeat).toBe(false);
+
+    manager.setRepeat(true);
+    expect(manager.getState().repeat).toBe(true);
+    expect(events.at(-1).repeat).toBe(true);
+
+    manager.setRepeat(false);
+    expect(manager.getState().repeat).toBe(false);
+    expect(events.at(-1).repeat).toBe(false);
+  });
+
+  it('restarts the current track instead of auto-advancing when repeat is enabled', async () => {
+    const tracks = [
+      { id: 'track-01', title: 'Track One', url: '/one.mp3' },
+      { id: 'track-02', title: 'Track Two', url: '/two.mp3' },
+    ];
+    const { manager, context } = createManager({
+      tracks,
+      autoAdvanceDelayMs: 5,
+    });
+
+    await manager.playTrack(tracks[0].id);
+    manager.setRepeat(true);
+
+    const initialSource = context.createdSources.at(-1);
+    expect(initialSource).toBeTruthy();
+
+    const waitForLoop = waitForTrack(manager, tracks[0].id);
+    initialSource.onended();
+    await waitForLoop;
+
+    expect(context.createdSources).toHaveLength(2);
+    expect(manager.getState().currentTrack.id).toBe(tracks[0].id);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(manager.getState().currentTrack.id).toBe(tracks[0].id);
+  });
+
   it('applies a perceived-linear volume curve and emits state updates', () => {
     const { manager, context, events } = createManager();
     const baselineEvents = events.length;
@@ -175,6 +215,20 @@ describe('AudioManager', () => {
     expect(context.nodes.gain[0].gain.value).toBeCloseTo(0.25);
     expect(events.length).toBeGreaterThan(baselineEvents);
     expect(events.at(-1).volume).toBeCloseTo(0.5);
+  });
+
+  it('routes the analyser ahead of the gain node so analysis ignores volume scaling', async () => {
+    const { manager, context } = createManager();
+    await manager.playTrack(DEFAULT_TRACK.id);
+
+    const analyser = context.nodes.analyser[0];
+    const gain = context.nodes.gain[0];
+    const destination = context.destination;
+    const latestSource = context.createdSources.at(-1);
+
+    expect(analyser.connections).toContain(gain);
+    expect(gain.connections).toContain(destination);
+    expect(latestSource.connections).toContain(analyser);
   });
 });
 
@@ -200,6 +254,7 @@ function createManager(overrides = {}) {
   const manager = new AudioManager({
     tracks: overrides.tracks || [DEFAULT_TRACK],
     autoAdvanceDelayMs: overrides.autoAdvanceDelayMs,
+    repeat: overrides.repeat,
     contextFactory: () => context,
     fetch: fetchImpl,
     fileInput,
@@ -237,7 +292,7 @@ function createStubInput() {
 
 class MockAudioContext {
   constructor() {
-    this.destination = new MockAudioNode();
+    this.destination = new MockAudioNode('destination');
     this.currentTime = 0;
     this.state = 'suspended';
     this.createdSources = [];
@@ -276,8 +331,14 @@ class MockAudioContext {
 }
 
 class MockAudioNode {
-  connect() {
-    return this;
+  constructor(name = 'node') {
+    this.name = name;
+    this.connections = [];
+  }
+
+  connect(target) {
+    this.connections.push(target);
+    return target;
   }
   disconnect() {}
 }
