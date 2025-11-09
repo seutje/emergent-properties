@@ -22,6 +22,7 @@ const DEFAULT_OPTIONS = {
   analyser: DEFAULT_ANALYSER_CONFIG,
   dragActiveClass: 'audio-drop-active',
   autoAdvanceDelayMs: 1000,
+  trackStartDelayMs: 1000,
   repeat: false,
 };
 
@@ -79,6 +80,9 @@ export class AudioManager extends BaseModule {
     this.autoAdvanceDelayMs = Number.isFinite(this.options.autoAdvanceDelayMs)
       ? this.options.autoAdvanceDelayMs
       : DEFAULT_OPTIONS.autoAdvanceDelayMs;
+    this.trackStartDelayMs = Number.isFinite(this.options.trackStartDelayMs)
+      ? Math.max(0, this.options.trackStartDelayMs)
+      : DEFAULT_OPTIONS.trackStartDelayMs;
 
     this.state = {
       playing: false,
@@ -400,9 +404,13 @@ export class AudioManager extends BaseModule {
       }
     };
 
-    sourceNode.start(0, offset);
+    const isResume = offset > 0;
+    const delaySeconds = isResume ? 0 : this.trackStartDelayMs / 1000;
+    const startAt = this.context.currentTime + delaySeconds;
+
+    sourceNode.start(startAt, offset);
     this.sourceNode = sourceNode;
-    this._startTime = this.context.currentTime - offset;
+    this._startTime = startAt - offset;
     this._pauseOffset = offset;
 
     const currentTrack = {
@@ -414,7 +422,8 @@ export class AudioManager extends BaseModule {
     const payload = {
       track: currentTrack,
       offset,
-      isResume: offset > 0,
+      isResume,
+      delayMs: isResume ? 0 : this.trackStartDelayMs,
     };
     this._updateState({ playing: true, currentTrack });
     this.emit(AudioManagerEvents.TRACK_LOADED, payload);
@@ -439,7 +448,8 @@ export class AudioManager extends BaseModule {
     if (!this.context || !this._currentBuffer) {
       return 0;
     }
-    return Math.min(this.context.currentTime - this._startTime, this._currentBuffer.duration);
+    const elapsed = Math.max(0, this.context.currentTime - this._startTime);
+    return Math.min(elapsed, this._currentBuffer.duration);
   }
 
   _attachFileInput(input) {

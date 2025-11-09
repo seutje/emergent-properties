@@ -29,7 +29,9 @@ describe('AudioManager', () => {
     expect(track.title).toBe(DEFAULT_TRACK.title);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(context.createdSources).toHaveLength(1);
-    expect(context.createdSources[0].started[0].offset).toBe(0);
+    const [{ when, offset }] = context.createdSources[0].started;
+    expect(offset).toBe(0);
+    expect(when).toBeCloseTo(1); // 1 second default delay
 
     manager.stop();
     await manager.playTrack(DEFAULT_TRACK.id);
@@ -37,15 +39,30 @@ describe('AudioManager', () => {
     expect(manager.getState().playing).toBe(true);
   });
 
-  it('captures pause offsets and resumes from the stored position', async () => {
+  it('delays fresh track playback to allow the model to load', async () => {
     const { manager, context } = createManager();
     await manager.playTrack(DEFAULT_TRACK.id);
 
-    context.currentTime = 5;
+    const [{ when }] = context.createdSources[0].started;
+    expect(when).toBeCloseTo(manager.trackStartDelayMs / 1000);
+
+    context.currentTime = when / 2;
+    expect(manager.getState().progress).toBe(0);
+
+    context.currentTime = when + 0.25;
+    expect(manager.getState().progress).toBeCloseTo(0.25);
+  });
+
+  it('captures pause offsets and resumes from the stored position', async () => {
+    const { manager, context } = createManager();
+    await manager.playTrack(DEFAULT_TRACK.id);
+    const startDelay = manager.trackStartDelayMs / 1000;
+
+    context.currentTime = startDelay + 5;
     manager.pause();
     expect(manager.getState().playing).toBe(false);
 
-    context.currentTime = 8;
+    context.currentTime = startDelay + 8;
     await manager.play();
 
     expect(context.createdSources).toHaveLength(2);
@@ -57,14 +74,15 @@ describe('AudioManager', () => {
     const { manager, context } = createManager();
     const payloads = [];
     manager.on(AudioManagerEvents.TRACK_LOADED, (payload) => payloads.push(payload));
+    const startDelay = manager.trackStartDelayMs / 1000;
 
     await manager.playTrack(DEFAULT_TRACK.id);
     expect(payloads[0].offset).toBe(0);
     expect(payloads[0].isResume).toBe(false);
 
-    context.currentTime = 3.5;
+    context.currentTime = startDelay + 3.5;
     manager.pause();
-    context.currentTime = 7;
+    context.currentTime = startDelay + 7;
     await manager.play();
 
     expect(payloads[1].isResume).toBe(true);

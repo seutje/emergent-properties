@@ -138,3 +138,7 @@
 - Added a Repeat toggle to the transport row so listeners can lock the current track into a loop, complete with matching styling and state wiring in `main.js`.
 - Extended `AudioManager` with a persisted repeat flag that restarts finished tracks before any auto-advance kicks in, and taught the Jest suite to cover the new API/behavior.
 - Ran `npm test -- js/audio/AudioManager.test.js` to keep the audio pipeline coverage green after the transport upgrade.
+
+## 2025-11-09
+- Added a configurable 1-second pre-roll inside `AudioManager` so fresh tracks pause briefly while curated/loaded models hydrate, updated progress math to avoid negative timelines during the wait, and emit the scheduled delay for downstream consumers.
+- Extended `js/audio/AudioManager.test.js` with coverage for the new delay/resume behavior and reran `npm test -- js/audio/AudioManager.test.js` to keep the suite green.
