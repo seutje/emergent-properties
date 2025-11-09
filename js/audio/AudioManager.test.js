@@ -86,6 +86,26 @@ describe('AudioManager', () => {
     expect(uploads[0].track.title).toBe('custom.mp3');
   });
 
+  it('keeps uploaded tracks in the catalog so they can be replayed via the selector', async () => {
+    const { manager, context } = createManager();
+    const fakeFile = {
+      name: 'custom-two.mp3',
+      type: 'audio/mpeg',
+      arrayBuffer: async () => new ArrayBuffer(32),
+    };
+
+    const uploaded = await manager.handleFile(fakeFile);
+    manager.stop();
+
+    const storedUploads = manager.getUploadedTracks();
+    expect(storedUploads).toHaveLength(1);
+    expect(storedUploads[0]).toMatchObject({ id: uploaded.id, title: 'custom-two.mp3', source: 'upload' });
+
+    const replayed = await manager.playTrack(uploaded.id);
+    expect(replayed.id).toBe(uploaded.id);
+    expect(context.createdSources).toHaveLength(2);
+  });
+
   it('rejects non-audio uploads with an error event', async () => {
     const { manager, errors } = createManager();
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});

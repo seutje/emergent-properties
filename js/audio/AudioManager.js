@@ -68,6 +68,7 @@ export class AudioManager extends BaseModule {
     this.dragClass = this.options.dragActiveClass;
 
     this._trackCache = new Map();
+    this._uploadedTracks = [];
     this._listeners = new Map();
     this._currentBuffer = null;
     this._currentTrackMeta = null;
@@ -138,6 +139,10 @@ export class AudioManager extends BaseModule {
     return [...(this.options.tracks || [])];
   }
 
+  getUploadedTracks() {
+    return [...this._uploadedTracks];
+  }
+
   getAnalyser() {
     return this.analyser;
   }
@@ -189,7 +194,7 @@ export class AudioManager extends BaseModule {
     this._updateState({ isLoading: true });
     try {
       const buffer = await this._getTrackBuffer(track);
-      return await this._startPlayback(buffer, { ...track, source: 'bundled' });
+      return await this._startPlayback(buffer, { ...track, source: track.source || 'bundled' });
     } catch (error) {
       this._emitError(error);
       throw error;
@@ -243,8 +248,9 @@ export class AudioManager extends BaseModule {
         title: file.name,
         source: 'upload',
       };
-      this.emit(AudioManagerEvents.UPLOAD, { track: meta });
-      return await this._startPlayback(buffer, meta);
+      const track = this._registerUploadedTrack(meta, buffer);
+      this.emit(AudioManagerEvents.UPLOAD, { track });
+      return await this._startPlayback(buffer, track);
     } catch (error) {
       this._emitError(error);
       return null;
@@ -305,12 +311,19 @@ export class AudioManager extends BaseModule {
       return idOrMeta;
     }
 
-    return this.getTracks().find(
+    const bundled = this.getTracks().find(
       (track) =>
         track.id === idOrMeta ||
         track.title === idOrMeta ||
         track.url === idOrMeta ||
         track.file === idOrMeta,
+    );
+    if (bundled) {
+      return bundled;
+    }
+
+    return this._uploadedTracks.find(
+      (track) => track.id === idOrMeta || track.title === idOrMeta || track.url === idOrMeta,
     );
   }
 
@@ -549,5 +562,26 @@ export class AudioManager extends BaseModule {
       this._autoAdvanceTimer = null;
       this.playTrack(nextTrack.id).catch((error) => this._emitError(error));
     }, this.autoAdvanceDelayMs);
+  }
+
+  _registerUploadedTrack(meta = {}, buffer = null) {
+    const track = {
+      id: meta.id || `upload-${Date.now()}`,
+      title: meta.title || 'Custom Track',
+      source: 'upload',
+    };
+
+    const existingIndex = this._uploadedTracks.findIndex((item) => item.id === track.id);
+    if (existingIndex >= 0) {
+      this._uploadedTracks[existingIndex] = track;
+    } else {
+      this._uploadedTracks.push(track);
+    }
+
+    if (track.id && buffer) {
+      this._trackCache.set(track.id, buffer);
+    }
+
+    return track;
   }
 }

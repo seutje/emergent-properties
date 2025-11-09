@@ -118,3 +118,15 @@
 ## 2025-11-09
 - Halved the particle field wobble by introducing a damping scalar inside `ParticleField.update`, so existing wobble settings/ML outputs now produce half the tilt without forcing preset changes.
 - Skipped automated tests because the adjustment only affects the visual rotation math; verified by code inspection.
+
+## 2025-11-09
+- Added a curated snapshot pool loader that enumerates `assets/models/01-29.json`, exposes a random-pool fetcher, and covered it (plus the new snapshot import path in `randomizeActiveModel`) with dedicated Jest specs.
+- Updated startup/track randomization to pull from the curated pool (falling back to seeded rebuilds on failure) so every new track spins up one of the vetted models; reran `npm test -- js/ml/ModelSnapshotLoader.test.js js/ml/randomizeActiveModel.test.js` to keep things green.
+
+## 2025-11-09
+- Let the transport remember uploaded MP3s by caching their decoded buffers, surfacing them through a new `getUploadedTracks()` API, and teaching the AudioManager tests to replay uploads via their IDs.
+- Rebuilt the transport select UI to split bundled album cuts vs custom uploads into optgroups and hydrate the custom list whenever a file picker or drag/drop upload completes; reran `npm test -- js/audio/AudioManager.test.js` to keep coverage green.
+
+## 2025-11-09
+- Renamed each curated model’s `metadata.label` to match its filename (01–29) and taught the Training Panel to display the active model label, defaulting to “custom” whenever in-browser training replaces the weights.
+- Wired the randomization/import pathways to update that label ribbon and added styling for the new readout; verified `npm test -- js/ml/randomizeActiveModel.test.js` after the UI changes.

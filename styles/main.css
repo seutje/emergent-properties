@@ -325,6 +325,14 @@ body.audio-drop-active .audio-drop-overlay {
   font-size: 0.85rem;
 }
 
+.training-panel__model-label {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(247, 251, 255, 0.7);
+}
+
 .training-panel__status {
   display: flex;
   align-items: center;

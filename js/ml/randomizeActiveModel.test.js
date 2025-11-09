@@ -39,4 +39,40 @@ describe('randomizeActiveModel', () => {
     await expect(randomizeActiveModel()).rejects.toThrow(/mlpModel/i);
     await expect(randomizeActiveModel({ mlpModel: {} })).rejects.toThrow(/mlpController/i);
   });
+
+  it('imports a snapshot when provided and forwards metadata', async () => {
+    const snapshot = { weights: [{ name: 'foo' }], config: { seed: 777 } };
+    const mlpModel = {
+      importSnapshot: jest.fn().mockResolvedValue({ label: 'Pool Model' }),
+    };
+    const mlpController = {
+      syncModelDimensions: jest.fn().mockResolvedValue(null),
+      refreshParticleState: jest.fn(),
+      runOnce: jest.fn().mockResolvedValue(null),
+    };
+    const trainingManager = { updateTrainingOptions: jest.fn() };
+    const uiController = { notifyModelRandomized: jest.fn() };
+
+    const seed = await randomizeActiveModel({
+      mlpModel,
+      mlpController,
+      trainingManager,
+      uiController,
+      snapshot,
+      snapshotUrl: './assets/models/03.json',
+      reason: 'track',
+    });
+
+    expect(seed).toBe(777);
+    expect(mlpModel.importSnapshot).toHaveBeenCalledWith(snapshot);
+    expect(mlpController.runOnce).toHaveBeenCalled();
+    expect(trainingManager.updateTrainingOptions).toHaveBeenCalledWith({ seed: 777 });
+    expect(uiController.notifyModelRandomized).toHaveBeenCalledWith({
+      seed: 777,
+      reason: 'track',
+      track: null,
+      snapshotUrl: './assets/models/03.json',
+      snapshotLabel: 'Pool Model',
+    });
+  });
 });

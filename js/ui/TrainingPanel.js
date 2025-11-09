@@ -58,6 +58,7 @@ export class TrainingPanel extends BaseModule {
       epochs: options.trainingOptions?.epochs || 1,
       loss: null,
       metadata: null,
+      modelLabel: '',
       trainingOptions: {
         epochs: 24,
         batchSize: 128,
@@ -77,6 +78,7 @@ export class TrainingPanel extends BaseModule {
     this.resultEl = null;
     this.errorEl = null;
     this.addButton = null;
+    this.modelLabelEl = null;
     this.buttons = {};
     this.fileInput = null;
     this.unsubscribes = [];
@@ -127,6 +129,9 @@ export class TrainingPanel extends BaseModule {
       this.lossEl = null;
     }
 
+    this.modelLabelEl = createElement('p', 'training-panel__model-label', 'Model: —');
+    children.push(this.modelLabelEl);
+
     children.push(this._buildCorrelationSection());
     if (this.showTrainingControls) {
       children.push(this._buildTrainingSection());
@@ -149,6 +154,7 @@ export class TrainingPanel extends BaseModule {
     this._bindTrainingEvents();
     this._renderCorrelations();
     this._syncStatus();
+    this._setModelLabel(this.state.modelLabel);
 
     super.init();
     return this;
@@ -342,6 +348,7 @@ export class TrainingPanel extends BaseModule {
           this.state.metadata = payload.metadata;
           this._renderResult(payload.metadata);
         }
+        this._setModelLabel('custom');
         this._syncStatus(payload);
         break;
       case 'error':
@@ -697,6 +704,7 @@ export class TrainingPanel extends BaseModule {
       await this.mlpModel.importSnapshot(snapshot);
       await this.mlpController?.runOnce?.();
       this.resultEl.textContent = `Loaded snapshot "${snapshot.metadata?.label || file.name}".`;
+      this._setModelLabel(snapshot.metadata?.label || 'custom');
     } catch (error) {
       this._showError(error?.message || 'Failed to import snapshot.');
     } finally {
@@ -704,13 +712,24 @@ export class TrainingPanel extends BaseModule {
     }
   }
 
-  handleModelRandomized({ seed, reason = 'manual', track = null } = {}) {
-    if (!Number.isFinite(seed)) {
-      return;
+  handleModelRandomized({ seed, reason = 'manual', track = null, snapshotLabel = '', snapshotUrl = '' } = {}) {
+    const hasSeed = Number.isFinite(seed);
+    const trackLabel = track?.title || track?.id || '';
+    let nextLabel = typeof snapshotLabel === 'string' ? snapshotLabel.trim() : '';
+    if (!nextLabel && typeof snapshotUrl === 'string') {
+      const match = snapshotUrl.match(/([^/]+)\.json$/i);
+      if (match) {
+        nextLabel = match[1];
+      }
     }
-    this.state.trainingOptions.seed = seed;
+    if (!nextLabel && hasSeed) {
+      nextLabel = `seed ${seed}`;
+    }
+    this._setModelLabel(nextLabel);
+    if (hasSeed) {
+      this.state.trainingOptions.seed = seed;
+    }
     if (this.resultEl) {
-      const trackLabel = track?.title || track?.id || '';
       let prefix = 'Model randomized';
       if (reason === 'startup') {
         prefix = 'Session seeded a random model';
@@ -719,9 +738,18 @@ export class TrainingPanel extends BaseModule {
       } else if (reason === 'upload') {
         prefix = trackLabel ? `Upload "${trackLabel}" seeded a random model` : 'Uploaded track seeded a random model';
       }
-      this.resultEl.textContent = `${prefix} (seed ${seed}).`;
+      const suffix = hasSeed ? ` (seed ${seed}).` : '.';
+      this.resultEl.textContent = `${prefix}${suffix}`;
     }
     this._clearError();
+  }
+
+  _setModelLabel(label = '') {
+    const normalized = typeof label === 'string' ? label.trim() : '';
+    this.state.modelLabel = normalized;
+    if (this.modelLabelEl) {
+      this.modelLabelEl.textContent = `Model: ${normalized || '—'}`;
+    }
   }
 
   _showError(message) {

@@ -10,6 +10,8 @@
  * @param {number} [options.seed]
  * @param {string} [options.reason]
  * @param {Object} [options.track]
+ * @param {Object} [options.snapshot] Optional snapshot to import instead of rebuilding.
+ * @param {string} [options.snapshotUrl] Optional source hint for UI notifications.
  * @returns {Promise<number>} The seed used for randomization.
  */
 export async function randomizeActiveModel({
@@ -20,6 +22,8 @@ export async function randomizeActiveModel({
   seed = null,
   reason = 'manual',
   track = null,
+  snapshot = null,
+  snapshotUrl = '',
 } = {}) {
   if (!mlpModel) {
     throw new Error('[randomizeActiveModel] mlpModel is required.');
@@ -28,8 +32,29 @@ export async function randomizeActiveModel({
     throw new Error('[randomizeActiveModel] mlpController is required.');
   }
 
-  const nextSeed = Number.isFinite(seed) ? seed : Date.now();
-  await mlpModel.rebuild({ seed: nextSeed });
+  let nextSeed = Number.isFinite(seed) ? seed : null;
+  let snapshotLabel = null;
+
+  if (snapshot) {
+    const metadata = await mlpModel.importSnapshot(snapshot);
+    snapshotLabel = metadata?.label || snapshot?.metadata?.label || null;
+    if (!Number.isFinite(nextSeed)) {
+      const configSeed = Number(snapshot?.config?.seed);
+      const metadataSeed = Number(metadata?.seed);
+      if (Number.isFinite(configSeed)) {
+        nextSeed = configSeed;
+      } else if (Number.isFinite(metadataSeed)) {
+        nextSeed = metadataSeed;
+      }
+    }
+  } else {
+    nextSeed = Number.isFinite(nextSeed) ? nextSeed : Date.now();
+    await mlpModel.rebuild({ seed: nextSeed });
+  }
+
+  if (!Number.isFinite(nextSeed)) {
+    nextSeed = Date.now();
+  }
 
   if (typeof mlpController.syncModelDimensions === 'function') {
     await mlpController.syncModelDimensions();
@@ -45,11 +70,19 @@ export async function randomizeActiveModel({
     trainingManager.updateTrainingOptions({ seed: nextSeed });
   }
 
-  uiController?.notifyModelRandomized?.({
+  const notification = {
     seed: nextSeed,
     reason,
     track,
-  });
+  };
+  if (snapshotUrl) {
+    notification.snapshotUrl = snapshotUrl;
+  }
+  if (snapshotLabel) {
+    notification.snapshotLabel = snapshotLabel;
+  }
+
+  uiController?.notifyModelRandomized?.(notification);
 
   return nextSeed;
 }

@@ -4,7 +4,7 @@ import { Renderer } from './render/Renderer.js';
 import { MLPModel } from './ml/MLPModel.js';
 import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
 import { MLPTrainingManager } from './ml/MLPTrainingManager.js';
-import { loadDefaultModelSnapshot } from './ml/ModelSnapshotLoader.js';
+import { loadDefaultModelSnapshot, loadRandomSnapshotFromPool } from './ml/ModelSnapshotLoader.js';
 import { UIController } from './ui/UIController.js';
 import { PARTICLE_PARAMETER_COUNT } from './ml/MLPTrainingTargets.js';
 import { upgradeModelSnapshot } from './ml/ModelSnapshotUpgrade.js';
@@ -132,17 +132,40 @@ async function bootstrap() {
   });
   uiController.init();
 
-  const randomizeModel = (details = {}) =>
-    randomizeActiveModel({
-      mlpModel,
-      mlpController,
-      trainingManager,
-      uiController,
-      ...details,
-    }).catch((error) => {
+  const AUTO_RANDOMIZE_REASONS = new Set(['startup', 'track', 'upload']);
+
+  const randomizeModel = async (details = {}) => {
+    const reason = details?.reason || 'manual';
+    if (AUTO_RANDOMIZE_REASONS.has(reason)) {
+      try {
+        const { snapshot, url } = await loadRandomSnapshotFromPool();
+        return await randomizeActiveModel({
+          mlpModel,
+          mlpController,
+          trainingManager,
+          uiController,
+          ...details,
+          snapshot,
+          snapshotUrl: url,
+        });
+      } catch (error) {
+        console.warn('[main] Failed to load curated model snapshot, falling back to random seed.', error);
+      }
+    }
+
+    try {
+      return await randomizeActiveModel({
+        mlpModel,
+        mlpController,
+        trainingManager,
+        uiController,
+        ...details,
+      });
+    } catch (error) {
       console.error('[main] Failed to randomize model', error);
       return null;
-    });
+    }
+  };
 
   await randomizeModel({ reason: 'startup' });
 
@@ -311,7 +334,16 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
 
   const trackSelect = document.createElement('select');
   trackSelect.className = 'audio-select';
-  trackSelect.setAttribute('aria-label', 'Bundled tracks');
+  trackSelect.setAttribute('aria-label', 'Track selector');
+
+  const albumGroup = document.createElement('optgroup');
+  albumGroup.label = 'Album tracks';
+  trackSelect.append(albumGroup);
+
+  const customGroup = document.createElement('optgroup');
+  customGroup.label = 'Custom uploads';
+  customGroup.hidden = true;
+  trackSelect.append(customGroup);
 
   const uploadButton = document.createElement('button');
   uploadButton.type = 'button';
@@ -361,14 +393,46 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   volumeWrapper.append(volumeLabel, volumeSlider, volumeValue);
 
   const tracks = manager.getTracks();
-  tracks.forEach((track, index) => {
+  const customOptions = new Map();
+
+  const ensureCustomGroupVisibility = () => {
+    customGroup.hidden = customGroup.children.length === 0;
+  };
+
+  const createOption = (track, prefix = '') => {
     const option = document.createElement('option');
     option.value = track.id;
-    option.textContent = `${index + 1}. ${track.title}`;
-    trackSelect.append(option);
+    option.textContent = `${prefix}${track.title}`;
+    option.dataset.source = track.source || 'bundled';
+    return option;
+  };
+
+  const addCustomTrackOption = (track) => {
+    if (!track?.id) return;
+    const existing = customOptions.get(track.id);
+    if (existing) {
+      existing.textContent = track.title;
+    } else {
+      const option = createOption(track);
+      customGroup.append(option);
+      customOptions.set(track.id, option);
+    }
+    ensureCustomGroupVisibility();
+  };
+
+  tracks.forEach((track, index) => {
+    albumGroup.append(createOption(track, `${index + 1}. `));
   });
+
+  const uploadedTracks =
+    typeof manager.getUploadedTracks === 'function' ? manager.getUploadedTracks() : [];
+  uploadedTracks.forEach((track) => addCustomTrackOption(track));
+  ensureCustomGroupVisibility();
+
   if (tracks[0]) {
     trackSelect.value = tracks[0].id;
+  } else if (uploadedTracks[0]) {
+    trackSelect.value = uploadedTracks[0].id;
   }
 
   playButton.addEventListener('click', () => {
@@ -390,6 +454,11 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
     stopButton.disabled = !state.playing && !state.currentTrack;
     uploadButton.disabled = state.isLoading;
     wrapper.classList.toggle('is-lockable', !state.unlocked);
+    if (state.currentTrack?.id && !customOptions.has(state.currentTrack.id)) {
+      if (state.currentTrack.source === 'upload') {
+        addCustomTrackOption(state.currentTrack);
+      }
+    }
     if (state.currentTrack?.id) {
       trackSelect.value = state.currentTrack.id;
     }
@@ -415,6 +484,11 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
 
   manager.on(AudioManagerEvents.TRACK_LOADED, ({ track }) => {
     status.textContent = `Now playing: ${track.title}`;
+  });
+
+  manager.on(AudioManagerEvents.UPLOAD, ({ track }) => {
+    addCustomTrackOption(track);
+    trackSelect.value = track.id;
   });
 
   wrapper.append(playButton, stopButton, trackSelect, uploadButton, volumeWrapper, status);
