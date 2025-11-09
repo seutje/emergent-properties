@@ -156,3 +156,8 @@
 ## 2025-11-09
 - Introduced `TrackModelResolver` to map bundled tracks to deterministic curated snapshot URLs and added Jest coverage to lock the mapping rules in place.
 - Updated `main.js` so bundled tracks load their mapped models while uploads continue to randomize from the curated pool; ran `npm test -- TrackModelResolver` after wiring the new flow.
+
+## 2025-11-09
+- Added a Next Track transport button between Stop and the selector that calls the new `AudioManager.playNextTrack()` API so listeners can hop through bundled + uploaded songs without touching the dropdown.
+- Extended `AudioManager` with a deduped track sequence helper plus Jest coverage for the new skip behavior (including uploads/no-track edge cases) and refreshed the transport state wiring to disable the button when only one track is available.
+- Ran `npm test` to cover the new behavior across the full suite.

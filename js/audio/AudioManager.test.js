@@ -184,6 +184,54 @@ describe('AudioManager', () => {
     expect(manager.getState().playing).toBe(true);
   });
 
+  it('skips to the next track via playNextTrack while honoring the start delay', async () => {
+    const tracks = [
+      { id: 'track-01', title: 'Track One', url: '/one.mp3' },
+      { id: 'track-02', title: 'Track Two', url: '/two.mp3' },
+      { id: 'track-03', title: 'Track Three', url: '/three.mp3' },
+    ];
+    const { manager, context } = createManager({ tracks });
+
+    await manager.playTrack(tracks[0].id);
+    const waitForSecond = waitForTrack(manager, tracks[1].id);
+    await manager.playNextTrack();
+    await waitForSecond;
+
+    expect(manager.getState().currentTrack.id).toBe(tracks[1].id);
+    const latestSource = context.createdSources.at(-1);
+    expect(latestSource.started.at(-1).when).toBeCloseTo(manager.trackStartDelayMs / 1000);
+
+    const waitForThird = waitForTrack(manager, tracks[2].id);
+    await manager.playNextTrack();
+    await waitForThird;
+    expect(manager.getState().currentTrack.id).toBe(tracks[2].id);
+  });
+
+  it('includes uploaded tracks when skipping forward by default', async () => {
+    const { manager } = createManager({ tracks: [DEFAULT_TRACK] });
+    await manager.playTrack(DEFAULT_TRACK.id);
+
+    const fakeFile = {
+      name: 'skip-me.mp3',
+      type: 'audio/mpeg',
+      arrayBuffer: async () => new ArrayBuffer(64),
+    };
+
+    const uploaded = await manager.handleFile(fakeFile);
+    await manager.playTrack(DEFAULT_TRACK.id);
+
+    const waitForUpload = waitForTrack(manager, uploaded.id);
+    await manager.playNextTrack();
+    await waitForUpload;
+
+    expect(manager.getState().currentTrack.id).toBe(uploaded.id);
+  });
+
+  it('throws when attempting to skip without any tracks available', async () => {
+    const { manager } = createManager({ tracks: [] });
+    await expect(manager.playNextTrack()).rejects.toThrow(/no tracks/i);
+  });
+
   it('toggles repeat mode via setRepeat and exposes it through state events', () => {
     const { manager, events } = createManager();
     expect(manager.getState().repeat).toBe(false);

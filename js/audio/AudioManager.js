@@ -209,6 +209,38 @@ export class AudioManager extends BaseModule {
     }
   }
 
+  async playNextTrack(options = {}) {
+    const includeUploads = options.includeUploads !== false;
+    const wrap = options.wrap !== false;
+    const sequence = this._getTrackSequence(includeUploads);
+
+    if (sequence.length === 0) {
+      throw new Error('[AudioManager] No tracks are available to skip to.');
+    }
+
+    const currentId = this.state.currentTrack?.id;
+    const currentIndex = currentId ? sequence.findIndex((track) => track.id === currentId) : -1;
+    let nextIndex = currentIndex + 1;
+
+    if (nextIndex >= sequence.length) {
+      if (!wrap) {
+        return null;
+      }
+      nextIndex = 0;
+    }
+
+    if (nextIndex < 0) {
+      nextIndex = 0;
+    }
+
+    const nextTrack = sequence[nextIndex];
+    if (!nextTrack) {
+      return null;
+    }
+
+    return this.playTrack(nextTrack.id);
+  }
+
   pause() {
     if (!this.sourceNode || !this.state.playing) {
       return;
@@ -613,5 +645,26 @@ export class AudioManager extends BaseModule {
     }
 
     return track;
+  }
+
+  _getTrackSequence(includeUploads = true) {
+    const seen = new Set();
+    const sequence = [];
+    const append = (list = []) => {
+      list.forEach((track) => {
+        if (!track?.id || seen.has(track.id)) {
+          return;
+        }
+        seen.add(track.id);
+        sequence.push(track);
+      });
+    };
+
+    append(this.getTracks());
+    if (includeUploads) {
+      append(this.getUploadedTracks());
+    }
+
+    return sequence;
   }
 }

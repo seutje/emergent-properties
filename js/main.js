@@ -394,6 +394,12 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   stopButton.className = 'audio-btn';
   stopButton.textContent = 'Stop';
 
+  const nextTrackButton = document.createElement('button');
+  nextTrackButton.type = 'button';
+  nextTrackButton.className = 'audio-btn';
+  nextTrackButton.setAttribute('aria-label', 'Skip to next track');
+  nextTrackButton.textContent = 'Next';
+
   const trackSelect = document.createElement('select');
   trackSelect.className = 'audio-select';
   trackSelect.setAttribute('aria-label', 'Track selector');
@@ -532,6 +538,32 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   uploadButton.addEventListener('click', () => manager.triggerFilePicker());
   trackSelect.addEventListener('change', (event) => manager.playTrack(event.target.value));
   repeatToggle.addEventListener('change', (event) => manager.setRepeat(event.target.checked));
+  const updateNextTrackButtonState = (state = manager.getState()) => {
+    const baseCount = manager.getTracks().length;
+    const uploadCount =
+      typeof manager.getUploadedTracks === 'function' ? manager.getUploadedTracks().length : 0;
+    const hasChoice = baseCount + uploadCount > 1;
+    nextTrackButton.disabled = !hasChoice || state.isLoading;
+  };
+
+  nextTrackButton.addEventListener('click', async () => {
+    if (nextTrackButton.disabled) {
+      return;
+    }
+    nextTrackButton.disabled = true;
+    try {
+      await manager.playNextTrack();
+    } catch (error) {
+      console.error('[Transport] Failed to skip track', error);
+      status.textContent = error?.message || 'Unable to skip track';
+      wrapper.classList.add('has-error');
+      setTimeout(() => wrapper.classList.remove('has-error'), 2000);
+    } finally {
+      updateNextTrackButtonState();
+    }
+  });
+
+  updateNextTrackButtonState();
   if (onNextModel) {
     nextModelButton.addEventListener('click', async () => {
       if (nextModelButton.disabled) {
@@ -560,6 +592,7 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
     playButton.textContent = state.playing ? 'Pause' : 'Play';
     playButton.disabled = state.isLoading;
     stopButton.disabled = !state.playing && !state.currentTrack;
+    updateNextTrackButtonState(state);
     uploadButton.disabled = state.isLoading;
     wrapper.classList.toggle('is-lockable', !state.unlocked);
     if (state.currentTrack?.id && !customOptions.has(state.currentTrack.id)) {
@@ -601,11 +634,13 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   manager.on(AudioManagerEvents.UPLOAD, ({ track }) => {
     addCustomTrackOption(track);
     trackSelect.value = track.id;
+    updateNextTrackButtonState();
   });
 
   wrapper.append(
     playButton,
     stopButton,
+    nextTrackButton,
     trackSelect,
     uploadButton,
     volumeWrapper,
