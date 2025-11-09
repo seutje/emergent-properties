@@ -16,6 +16,7 @@ import { upgradeModelSnapshot } from './ml/ModelSnapshotUpgrade.js';
 import { PARTICLE_POSITIONAL_FEATURES } from './ml/MLPTrainingFeatures.js';
 import { randomizeActiveModel } from './ml/randomizeActiveModel.js';
 import { ModelCycler } from './ml/ModelCycler.js';
+import { createTrackSnapshotMap, getTrackSnapshotUrl } from './ml/TrackModelResolver.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -29,6 +30,8 @@ const BUNDLED_TRACKS = [
   { id: 'track-09', title: 'Negative Space', url: './assets/audio/09 - Negative Space.mp3' },
   { id: 'track-10', title: 'Recursive Dreams', url: './assets/audio/10 - Recursive Dreams.mp3' },
 ];
+
+const TRACK_SNAPSHOT_MAP = createTrackSnapshotMap(BUNDLED_TRACKS, MODEL_POOL_SNAPSHOT_URLS);
 
 const BASE_PARTICLE_DIMS = 8;
 
@@ -183,6 +186,26 @@ async function bootstrap() {
     }
   };
 
+  const loadModelForBundledTrack = async (track) => {
+    const snapshotUrl = getTrackSnapshotUrl(track, TRACK_SNAPSHOT_MAP);
+    if (!snapshotUrl) {
+      console.warn('[main] No curated model mapping found for track; falling back to random seed.', track);
+      return randomizeModel({ reason: 'track', track });
+    }
+    try {
+      const snapshot = await loadModelSnapshot(snapshotUrl);
+      return await applyRandomization({
+        reason: 'track',
+        track,
+        snapshot,
+        snapshotUrl,
+      });
+    } catch (error) {
+      console.error('[main] Failed to load curated snapshot for track. Falling back to random model.', error);
+      return randomizeModel({ reason: 'track', track });
+    }
+  };
+
   const loadNextCuratedModel = async () => {
     if (!modelCycler.hasNext()) {
       throw new Error('No curated models are available.');
@@ -229,8 +252,11 @@ async function bootstrap() {
     if (isResume) {
       return;
     }
-    const reason = track?.source === 'upload' ? 'upload' : 'track';
-    randomizeModel({ reason, track });
+    if (track?.source === 'upload') {
+      randomizeModel({ reason: 'upload', track });
+      return;
+    }
+    loadModelForBundledTrack(track);
   });
 
   let last = performance.now();

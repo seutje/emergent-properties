@@ -152,3 +152,7 @@
 - Added a Next Model button to the glassmorphic transport bar that sequentially loads curated snapshots via a new `ModelCycler`, keeping the button in sync with random/autoloaded models so listeners can audition the full set without diving into lil-gui.
 - Wired the button through `main.js`, updated the transport styling for the new ghost action, and covered the cycler helper with `js/ml/ModelCycler.test.js`.
 - Ran `npm test -- js/ml/ModelCycler.test.js` to keep coverage green.
+
+## 2025-11-09
+- Introduced `TrackModelResolver` to map bundled tracks to deterministic curated snapshot URLs and added Jest coverage to lock the mapping rules in place.
+- Updated `main.js` so bundled tracks load their mapped models while uploads continue to randomize from the curated pool; ran `npm test -- TrackModelResolver` after wiring the new flow.
