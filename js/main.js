@@ -70,6 +70,11 @@ async function bootstrap() {
   const renderer = new Renderer(appRoot);
   renderer.init();
   const particleField = renderer.getParticleField();
+  const applyTrackLayout = (trackMeta) => {
+    if (trackMeta) {
+      particleField?.setTrackLabel(trackMeta.title || trackMeta.id || '');
+    }
+  };
 
   const audioManager = new AudioManager({
     tracks: BUNDLED_TRACKS,
@@ -191,6 +196,7 @@ async function bootstrap() {
   });
 
   audioManager.on(AudioManagerEvents.TRACK_LOADED, ({ track, isResume }) => {
+    applyTrackLayout(track);
     if (isResume) {
       return;
     }

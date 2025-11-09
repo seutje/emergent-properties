@@ -91,6 +91,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [x] [AI] Add a Finetune training control that continues new runs from the current active model weights.
 - [x] [AI] Automatically reseed the active model at startup and whenever a new track begins playback.
 - [x] [AI] Delay new track playback by ~1 second so curated/loaded models have time to hydrate before audio starts piping through.
+- [x] [AI] Form the default particle layout into the active track title so the field spells the song name.
 
 **Acceptance criteria:**
 - App meets DESIGN.md §19 acceptance criteria.

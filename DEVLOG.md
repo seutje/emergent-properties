@@ -142,3 +142,8 @@
 ## 2025-11-09
 - Added a configurable 1-second pre-roll inside `AudioManager` so fresh tracks pause briefly while curated/loaded models hydrate, updated progress math to avoid negative timelines during the wait, and emit the scheduled delay for downstream consumers.
 - Extended `js/audio/AudioManager.test.js` with coverage for the new delay/resume behavior and reran `npm test -- js/audio/AudioManager.test.js` to keep the suite green.
+
+## 2025-11-09
+- Introduced a glyph-based text layout builder so the particle field can be remapped from its old cube into the characters of the active track, complete with deterministic seeded jitter and new defaults for text dimensions/depth.
+- Added `TextParticleLayout.test.js` to lock in the glyph mask + layout math, rewired `ParticleField` to accept `setTrackLabel`, and taught `main.js` to update the field whenever `TRACK_LOADED` fires.
+- Ran `npm test -- TextParticleLayout` to exercise the new unit tests.

@@ -2,8 +2,10 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { BaseModule } from '../core/BaseModule.js';
 import { particleVertexShader, particleFragmentShader, createParticleUniforms } from './Shaders.js';
 import { generateParticleAttributes } from './particleUtils.js';
+import { generateTextLayoutPositions, sanitizeTrackLabel } from './TextParticleLayout.js';
 
 const WOBBLE_DAMPING = 0.5;
+const DEFAULT_TRACK_LABEL = 'EMERGENT PROPERTIES';
 
 const DEFAULT_OPTIONS = {
   count: 32768,
@@ -21,6 +23,10 @@ const DEFAULT_OPTIONS = {
   colorMix: 1.5,
   alphaScale: 1,
   pointScale: 2,
+  textMaxWidth: 11,
+  textMaxHeight: 3.4,
+  textDepth: 1.2,
+  textJitter: 0.45,
 };
 
 export class ParticleField extends BaseModule {
@@ -38,6 +44,7 @@ export class ParticleField extends BaseModule {
     this.defaults = {};
     this._center = new THREE.Vector3();
     this._pixelRatio = 1;
+    this._trackLabel = DEFAULT_TRACK_LABEL;
   }
 
   init() {
@@ -101,6 +108,7 @@ export class ParticleField extends BaseModule {
     this.defaults.flickerRate = new Float32Array(this.attributeHandles.flickerRate.array);
     this.defaults.flickerDepth = new Float32Array(this.attributeHandles.flickerDepth.array);
     this.elapsed = 0;
+    this._applyTrackTextLayout({ skipDynamicsReset: true });
     return this;
   }
 
@@ -177,6 +185,17 @@ export class ParticleField extends BaseModule {
       return this;
     }
     this.resetDynamicAttributes();
+    this._applyTrackTextLayout({ skipDynamicsReset: true });
+    return this;
+  }
+
+  setTrackLabel(label) {
+    const clean = sanitizeTrackLabel(label) || DEFAULT_TRACK_LABEL;
+    if (clean === this._trackLabel) {
+      return this;
+    }
+    this._trackLabel = clean;
+    this._applyTrackTextLayout();
     return this;
   }
 
@@ -319,6 +338,7 @@ export class ParticleField extends BaseModule {
     this.defaults.flickerRate = new Float32Array(layout.flickerRate);
     this.defaults.flickerDepth = new Float32Array(layout.flickerDepth);
     this.geometry.computeBoundingSphere();
+    this._applyTrackTextLayout({ skipDynamicsReset: true });
     return true;
   }
 
@@ -330,5 +350,51 @@ export class ParticleField extends BaseModule {
     attribute.array.set(source);
     attribute.needsUpdate = true;
     return true;
+  }
+
+  _applyTrackTextLayout(options = {}) {
+    if (!this.geometry || !this._trackLabel) {
+      return false;
+    }
+    const layout = generateTextLayoutPositions({
+      text: this._trackLabel,
+      count: this.count,
+      seed: this.options.seed,
+      maxWidth: this.options.textMaxWidth,
+      maxHeight: this.options.textMaxHeight,
+      depthRange: this.options.textDepth,
+      jitter: this.options.textJitter,
+    });
+    if (!layout) {
+      return false;
+    }
+    const applied = this._copyAttributeArray('position', layout.positions);
+    if (!applied) {
+      return false;
+    }
+    this.state = this.state || {};
+    this.state.positions = layout.positions;
+    this.state.distOrigin = this._computeDistances(layout.positions);
+    this.geometry.computeBoundingSphere();
+    if (!options.skipDynamicsReset) {
+      this.resetDynamicAttributes();
+    }
+    return true;
+  }
+
+  _computeDistances(array) {
+    if (!array?.length) {
+      return new Float32Array(0);
+    }
+    const count = array.length / 3;
+    const distances = new Float32Array(count);
+    for (let i = 0; i < count; i += 1) {
+      const idx = i * 3;
+      const px = array[idx];
+      const py = array[idx + 1];
+      const pz = array[idx + 2];
+      distances[i] = Math.hypot(px, py, pz);
+    }
+    return distances;
   }
 }
