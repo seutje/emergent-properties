@@ -2,9 +2,8 @@ import { createSeededRandom } from './particleUtils.js';
 
 const GLYPH_HEIGHT = 7;
 const DEFAULT_CHAR_WIDTH = 5;
-const SPACE_WIDTH = 3;
 const CHAR_SPACING = 1;
-const WORD_SPACING = 2;
+const LINE_SPACING = 2;
 
 const DEFAULT_TEXT_OPTIONS = {
   maxWidth: 10,
@@ -81,20 +80,48 @@ export function buildTextMask(text) {
   if (!clean) {
     return null;
   }
+  const words = clean
+    .split(' ')
+    .map((word) => word.trim())
+    .filter(Boolean);
+  if (!words.length) {
+    return null;
+  }
+
+  const wordMasks = words.map((word) => buildWordMask(word));
+  const maxWidth = Math.max(...wordMasks.map((mask) => Math.max(mask.width, 1)));
+  const totalHeight =
+    words.length * GLYPH_HEIGHT + (words.length > 1 ? (words.length - 1) * LINE_SPACING : 0);
+
   const cells = [];
+  let cursorY = 0;
+  wordMasks.forEach((mask, index) => {
+    const clampedWidth = Math.max(mask.width, 1);
+    const offsetX = Math.floor((maxWidth - clampedWidth) / 2);
+    mask.cells.forEach(({ x, y }) => {
+      cells.push({ x: x + offsetX, y: cursorY + y });
+    });
+    if (index < wordMasks.length - 1) {
+      cursorY += GLYPH_HEIGHT + LINE_SPACING;
+    }
+  });
+
+  return {
+    cells,
+    width: maxWidth,
+    height: totalHeight,
+  };
+}
+
+function buildWordMask(word) {
+  const cells = [];
+  if (!word) {
+    return { cells, width: 1 };
+  }
   let cursorX = 0;
-  let lastGlyphWidth = 0;
   let lastSpacing = 0;
 
-  for (const rawChar of clean) {
-    if (rawChar === ' ') {
-      const width = SPACE_WIDTH;
-      const spacing = WORD_SPACING;
-      cursorX += width + spacing;
-      lastGlyphWidth = width;
-      lastSpacing = spacing;
-      continue;
-    }
+  for (const rawChar of word) {
     const key = SPECIAL_PRESERVE_CASE.has(rawChar) ? rawChar : rawChar.toUpperCase();
     const glyph = RAW_GLYPHS[key] || DEFAULT_GLYPH;
     const width = glyph[0]?.length || DEFAULT_CHAR_WIDTH;
@@ -110,7 +137,6 @@ export function buildTextMask(text) {
     }
 
     cursorX += width + spacing;
-    lastGlyphWidth = width;
     lastSpacing = spacing;
   }
 
@@ -118,7 +144,6 @@ export function buildTextMask(text) {
   return {
     cells,
     width: widthCells,
-    height: GLYPH_HEIGHT,
   };
 }
 

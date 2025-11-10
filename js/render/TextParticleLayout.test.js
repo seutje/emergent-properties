@@ -1,5 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
-import { buildTextMask, generateTextLayoutPositions, sanitizeTrackLabel } from './TextParticleLayout.js';
+import {
+  GLYPH_HEIGHT,
+  buildTextMask,
+  generateTextLayoutPositions,
+  sanitizeTrackLabel,
+} from './TextParticleLayout.js';
 
 describe('TextParticleLayout', () => {
   it('sanitizes whitespace-heavy labels', () => {
@@ -12,6 +17,27 @@ describe('TextParticleLayout', () => {
     expect(mask.width).toBeGreaterThan(5);
     expect(mask.height).toBeGreaterThan(0);
     expect(mask.cells.length).toBeGreaterThan(10);
+  });
+
+  it('stacks multi-word labels vertically and centers narrower words', () => {
+    const text = 'I WIDE';
+    const mask = buildTextMask(text);
+    expect(mask.height).toBeGreaterThan(GLYPH_HEIGHT);
+    const words = sanitizeTrackLabel(text).split(' ').filter(Boolean);
+    const spacing =
+      words.length > 1 ? (mask.height - words.length * GLYPH_HEIGHT) / (words.length - 1) : 0;
+    const lineHeight = GLYPH_HEIGHT + spacing;
+    const bounds = words.map(() => ({ min: Infinity, max: -Infinity }));
+
+    mask.cells.forEach((cell) => {
+      const lineIndex = Math.min(bounds.length - 1, Math.floor(cell.y / lineHeight));
+      const target = bounds[lineIndex];
+      target.min = Math.min(target.min, cell.x);
+      target.max = Math.max(target.max, cell.x);
+    });
+
+    expect(bounds[0].min).toBeGreaterThan(0);
+    expect(bounds[0].max - bounds[0].min).toBeLessThan(bounds[1].max - bounds[1].min);
   });
 
   it('generates deterministic positions that respect the requested bounds', () => {

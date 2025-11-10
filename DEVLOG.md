@@ -161,3 +161,7 @@
 - Added a Next Track transport button between Stop and the selector that calls the new `AudioManager.playNextTrack()` API so listeners can hop through bundled + uploaded songs without touching the dropdown.
 - Extended `AudioManager` with a deduped track sequence helper plus Jest coverage for the new skip behavior (including uploads/no-track edge cases) and refreshed the transport state wiring to disable the button when only one track is available.
 - Ran `npm test` to cover the new behavior across the full suite.
+
+## 2025-11-10
+- Restacked the particle glyph layout so each word in the active track title gets its own centered line, keeping seeded jitter + depth but producing legible vertical titles.
+- Updated `TextParticleLayout.test.js` with coverage for the multi-line, center-alignment math and reran `npm test -- TextParticleLayout` to keep the suite green.
