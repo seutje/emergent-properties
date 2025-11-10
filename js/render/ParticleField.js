@@ -4,7 +4,7 @@ import { particleVertexShader, particleFragmentShader, createParticleUniforms } 
 import { generateParticleAttributes } from './particleUtils.js';
 import { generateTextLayoutPositions, sanitizeTrackLabel } from './TextParticleLayout.js';
 
-const WOBBLE_DAMPING = 0.5;
+const WOBBLE_DAMPING = 0.25;
 const DEFAULT_TRACK_LABEL = 'EMERGENT PROPERTIES';
 
 const DEFAULT_OPTIONS = {
