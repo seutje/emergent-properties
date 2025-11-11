@@ -169,3 +169,8 @@
 ## 2025-11-11
 - Added an `OutputResponseController` layer that treats MLP predictions as targets, then applies per-channel attack/release EMA, slew limits, hysteresis, critically damped springing, and quiet-section gating before mutating renderer globals.
 - Rewired `MLPOrchestrator` to register its global outputs with the controller, feed modifiers + dt into the new pass, expanded Jest coverage (`OutputResponseController.test.js`, updated orchestrator tests), and ran `npm test -- OutputResponseController` to validate the controller behaviors.
+
+## 2025-11-11
+- Extended the training defaults with explicit temporal smoothness, slew-rate, Jacobian, and noise-consistency knobs so UI/worker settings can clamp overreactions without manual tweaks.
+- Rebuilt `MLPTrainingWorker`’s loop around a custom `optimizer.minimize` pass that batches data, injects Gaussian perturbations, applies TV/L2 penalties, and enforces a curriculum-weighted slew limiter plus weight decay before serializing the best snapshot.
+- Introduced `MLPTrainingRegularizers` (plus Jest coverage) to keep the curriculum math + config sanitizers deterministic, and ran `npm test -- MLPTrainingRegularizers` to ensure the helpers stay green.

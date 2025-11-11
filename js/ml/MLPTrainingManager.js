@@ -9,6 +9,17 @@ const DEFAULT_TRAINING_OPTIONS = {
   sampleCount: 4096,
   noise: 0.04,
   seed: Date.now(),
+  temporalSmoothnessWeight: 0.02,
+  temporalSmoothnessNorm: 'l2',
+  slewRateWeight: 0.015,
+  slewRateThreshold: 0.2,
+  jacobianWeight: 0.02,
+  jacobianNoise: 0.02,
+  inputNoiseStd: 0.02,
+  noiseConsistencyWeight: 0.35,
+  weightDecay: 5e-4,
+  curriculumWarmupEpochs: 6,
+  curriculumBoost: 1.6,
 };
 
 const noop = () => {};
