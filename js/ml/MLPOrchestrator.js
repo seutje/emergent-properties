@@ -1,6 +1,7 @@
 import { BaseModule } from '../core/BaseModule.js';
 import { FEATURE_KEYS } from '../audio/FeatureExtractor.js';
 import { PARTICLE_PARAMETER_TARGETS } from './MLPTrainingTargets.js';
+import { OutputResponseController } from './OutputResponseController.js';
 
 const OUTPUT_INDEX = PARTICLE_PARAMETER_TARGETS.reduce((acc, target) => {
   acc[target.id] = target.outputIndex;
@@ -135,7 +136,14 @@ export function deriveReactivity(features = {}, prevState = {}, options = DEFAUL
 }
 
 export class MLPOrchestrator extends BaseModule {
-  constructor({ model, particleField, featureExtractor, renderer = null, options = {} } = {}) {
+  constructor({
+    model,
+    particleField,
+    featureExtractor,
+    renderer = null,
+    options = {},
+    responseController = null,
+  } = {}) {
     super('MLPOrchestrator');
     this.model = model;
     this.particleField = particleField;
@@ -171,6 +179,7 @@ export class MLPOrchestrator extends BaseModule {
       envelope: 0,
       prevPeak: 0,
     };
+    this.outputController = responseController || new OutputResponseController();
   }
 
   async init() {
@@ -184,6 +193,7 @@ export class MLPOrchestrator extends BaseModule {
     this._captureFlickerDefaults();
     this._prepareStaticInputs();
     await this.syncModelDimensions();
+    this._configureControllerChannels();
     super.init();
     return this;
   }
@@ -481,7 +491,7 @@ export class MLPOrchestrator extends BaseModule {
     flickerRate?.markNeedsUpdate();
     flickerDepth?.markNeedsUpdate();
     if (activeGlobalKeys.length) {
-      this._applyGlobalOutputs(globalAccum, blend);
+      this._applyGlobalOutputs(globalAccum, { blend, modifiers, dt: this.interval });
     }
   }
 
@@ -511,7 +521,7 @@ export class MLPOrchestrator extends BaseModule {
     };
   }
 
-  _applyGlobalOutputs(accum = {}, blend = 1) {
+  _applyGlobalOutputs(accum = {}, { blend = 1, modifiers = null, dt = 1 / 24 } = {}) {
     if (!this.particleField || !accum) {
       return;
     }
@@ -533,7 +543,14 @@ export class MLPOrchestrator extends BaseModule {
       const normalized = clamp(sum / divisor, -1, 1);
       const mapped = mapMinusOneToOne(normalized, range.min, range.max);
       const current = this._readGlobalValue(key);
-      const next = lerp(current, mapped, blend);
+      const energy = Number.isFinite(modifiers?.envelope) ? modifiers.envelope : modifiers?.curved;
+      const next = this.outputController
+        ? this.outputController.step(key, mapped, {
+            dt,
+            blend,
+            energy,
+          })
+        : lerp(current, mapped, blend);
       this._writeGlobalValue(key, next);
     });
   }
@@ -561,5 +578,19 @@ export class MLPOrchestrator extends BaseModule {
     if (this.particleField?.options) {
       this.particleField.options[key] = value;
     }
+  }
+
+  _configureControllerChannels() {
+    if (!this.outputController) {
+      return;
+    }
+    GLOBAL_OUTPUT_KEYS.forEach((key) => {
+      const initial = this._readGlobalValue(key);
+      const range = this.options.outputs[key];
+      this.outputController.registerChannel(key, {
+        ...(range || {}),
+        initialValue: Number.isFinite(initial) ? initial : undefined,
+      });
+    });
   }
 }

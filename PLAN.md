@@ -82,6 +82,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [ ] [AI] Optimize bottlenecks discovered (particle budget, shader tweaks, throttled inference) and fix logged issues.
 - [ ] [Human] Approve final visual storytelling and audio-reactive feel.
 - [ ] [AI] Prepare release checklist (README updates, asset credits, deploy instructions).
+- [x] [AI] Insert a post-MLP response controller so renderer globals get slew-limited, hysteretic smoothing tied to audio energy.
 - [x] [AI] Add in-browser training workflow with user-defined correlations plus model import/export tooling.
 - [x] [AI] Load curated default MLP snapshot (assets/models/default.json) on boot to sync baseline model + training settings.
 - [x] [AI] Disable EMA smoothing by default so first-time loads reflect raw audio dynamics; GUI still exposes the toggle.

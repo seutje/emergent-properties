@@ -185,7 +185,17 @@ describe('MLPOrchestrator', () => {
       }),
       getCameraZoom: jest.fn(() => renderer.zoom),
     };
-    const orchestrator = new MLPOrchestrator({ model: {}, particleField, featureExtractor: null, renderer });
+    const responseController = {
+      registerChannel: jest.fn(),
+      step: jest.fn((key, value) => value),
+    };
+    const orchestrator = new MLPOrchestrator({
+      model: {},
+      particleField,
+      featureExtractor: null,
+      renderer,
+      responseController,
+    });
     orchestrator.attributeHandles = {};
     orchestrator.count = 4;
     orchestrator.outputDims = dims;
@@ -210,6 +220,7 @@ describe('MLPOrchestrator', () => {
 
     orchestrator._applyOutputs(buffer, { gain: 1, blend: 1, flickerBoost: 1 });
 
+    expect(responseController.step).toHaveBeenCalled();
     expect(particleField.setRotationSpeed).toHaveBeenCalled();
     expect(particleField.setWobbleStrength).toHaveBeenCalled();
     expect(particleField.setWobbleFrequency).toHaveBeenCalled();

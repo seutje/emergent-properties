@@ -165,3 +165,7 @@
 ## 2025-11-10
 - Restacked the particle glyph layout so each word in the active track title gets its own centered line, keeping seeded jitter + depth but producing legible vertical titles.
 - Updated `TextParticleLayout.test.js` with coverage for the multi-line, center-alignment math and reran `npm test -- TextParticleLayout` to keep the suite green.
+
+## 2025-11-11
+- Added an `OutputResponseController` layer that treats MLP predictions as targets, then applies per-channel attack/release EMA, slew limits, hysteresis, critically damped springing, and quiet-section gating before mutating renderer globals.
+- Rewired `MLPOrchestrator` to register its global outputs with the controller, feed modifiers + dt into the new pass, expanded Jest coverage (`OutputResponseController.test.js`, updated orchestrator tests), and ran `npm test -- OutputResponseController` to validate the controller behaviors.
