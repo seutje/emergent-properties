@@ -37,7 +37,7 @@ body {
   position: fixed;
   bottom: 1.5rem;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate3d(-50%, 0, 0);
   width: min(92vw, 820px);
   display: flex;
   flex-direction: column;
@@ -51,6 +51,14 @@ body {
   color: #f4f8ff;
   z-index: 10;
   backdrop-filter: blur(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  will-change: opacity, transform;
+}
+
+.audio-transport.audio-transport--hidden {
+  opacity: 0;
+  transform: translate3d(-50%, 20px, 0);
+  pointer-events: none;
 }
 
 .audio-transport__row {

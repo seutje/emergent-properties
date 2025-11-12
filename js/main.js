@@ -17,6 +17,7 @@ import { PARTICLE_POSITIONAL_FEATURES } from './ml/MLPTrainingFeatures.js';
 import { randomizeActiveModel } from './ml/randomizeActiveModel.js';
 import { ModelCycler } from './ml/ModelCycler.js';
 import { createTrackSnapshotMap, getTrackSnapshotUrl } from './ml/TrackModelResolver.js';
+import { attachIdleVisibilityController } from './ui/IdleVisibilityController.js';
 
 const BUNDLED_TRACKS = [
   { id: 'track-01', title: 'My Comrade', url: './assets/audio/01 - My Comrade.mp3' },
@@ -231,6 +232,10 @@ async function bootstrap() {
     onNextModel: loadNextCuratedModel,
   });
   document.body.appendChild(transport);
+  attachIdleVisibilityController(transport, {
+    idleMs: 3000,
+    hiddenClass: 'audio-transport--hidden',
+  });
 
   const gate = createAudioGate(audioManager);
   document.body.appendChild(gate.element);

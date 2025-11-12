@@ -95,6 +95,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [x] [AI] Delay new track playback by ~1 second so curated/loaded models have time to hydrate before audio starts piping through.
 - [x] [AI] Form the default particle layout into the active track title so the field spells the song name.
 - [x] [AI] Add a Next Model transport control to cycle through curated MLP snapshots sequentially.
+- [x] [AI] Auto-hide the transport bar after a few seconds of pointer inactivity while keeping it visible during hover.
 
 **Acceptance criteria:**
 - App meets DESIGN.md §19 acceptance criteria.

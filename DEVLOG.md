@@ -179,3 +179,8 @@
 - Rebuilt the audio transport markup into stacked rows (primary actions, slider band, meta row) and restyled the buttons, dropdown, repeat toggle, and status tile so they match the rectangular neon aesthetic from the reference screenshot.
 - Overhauled the CSS with shared gradients/border variables, a center-aligned panel, and a horizontal slider track with a square thumb so the transport now mirrors the provided UI while staying responsive.
 - Visual-only change, so no Jest suites were run for this pass.
+
+## 2025-11-12
+- Added an idle visibility controller that listens for pointer movement/hover state, hides the transport after ~3 seconds of inactivity, and immediately fades it back in as soon as the user wiggles the mouse or parks over the controls.
+- Wired the controller into `main.js`, introduced the shared helper under `js/ui/`, and updated the transport CSS with the hidden state/transition styling so the bar stays interactive the moment it reappears.
+- Ran `npm test -- js/ui/IdleVisibilityController.test.js` to cover the new helper behavior.
