@@ -189,3 +189,8 @@
 - Implemented a particle budget controller that monitors runtime FPS, targets 60/30 FPS profiles, and dynamically dials the particle field up or down for desktop and mobile hardware.
 - Rebuilt the particle field geometry pipeline so counts can be reapplied without recreating the scene, surfaced live particle stats in the GUI, and added Jest coverage for the budget controller plus mobile detection helpers.
 - Ran `npm test` to verify the suite with the new performance controls.
+
+## 2025-11-12
+- Tightened the audio transport styling by lowering typography scale, trimming padding/gaps, and flattening the cards/buttons so the bar reads as a compact strip.
+- Removed the rounded corners from the panel, controls, slider track, and thumb while keeping the gradient/glass treatments for continuity with the rest of the UI.
+- Visual-only adjustments; Jest suites were not rerun for this pass.
