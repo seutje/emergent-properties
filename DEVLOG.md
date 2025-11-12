@@ -184,3 +184,8 @@
 - Added an idle visibility controller that listens for pointer movement/hover state, hides the transport after ~3 seconds of inactivity, and immediately fades it back in as soon as the user wiggles the mouse or parks over the controls.
 - Wired the controller into `main.js`, introduced the shared helper under `js/ui/`, and updated the transport CSS with the hidden state/transition styling so the bar stays interactive the moment it reappears.
 - Ran `npm test -- js/ui/IdleVisibilityController.test.js` to cover the new helper behavior.
+
+## 2025-11-12
+- Implemented a particle budget controller that monitors runtime FPS, targets 60/30 FPS profiles, and dynamically dials the particle field up or down for desktop and mobile hardware.
+- Rebuilt the particle field geometry pipeline so counts can be reapplied without recreating the scene, surfaced live particle stats in the GUI, and added Jest coverage for the budget controller plus mobile detection helpers.
+- Ran `npm test` to verify the suite with the new performance controls.

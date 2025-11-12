@@ -1,6 +1,7 @@
 import { AudioManager, AudioManagerEvents } from './audio/AudioManager.js';
 import { FeatureExtractor, FEATURE_KEYS } from './audio/FeatureExtractor.js';
 import { Renderer } from './render/Renderer.js';
+import { ParticleBudgetController } from './render/ParticleBudgetController.js';
 import { MLPModel } from './ml/MLPModel.js';
 import { MLPOrchestrator } from './ml/MLPOrchestrator.js';
 import { MLPTrainingManager } from './ml/MLPTrainingManager.js';
@@ -133,7 +134,12 @@ async function bootstrap() {
     }
   });
 
-  const liveStats = { fps: 0, inferenceMs: 0 };
+  const liveStats = {
+    fps: 0,
+    inferenceMs: 0,
+    particleCount: particleField.getParticleCount(),
+    targetFps: 0,
+  };
   const uiController = new UIController({
     renderer,
     particleField,
@@ -146,6 +152,14 @@ async function bootstrap() {
     mlpTrainingOptions: trainingManager.getTrainingOptions(),
   });
   uiController.init();
+
+  const particleBudget = new ParticleBudgetController({
+    particleField,
+    mlpController,
+    stats: liveStats,
+  });
+  particleBudget.init();
+  liveStats.targetFps = particleBudget.getTargetFps();
 
   const modelCycler = new ModelCycler(MODEL_POOL_SNAPSHOT_URLS);
   const AUTO_RANDOMIZE_REASONS = new Set(['startup', 'track', 'upload']);
@@ -280,7 +294,9 @@ async function bootstrap() {
     const stats = mlpController.getStats();
     const inference = stats?.lastInferenceMs;
     liveStats.inferenceMs = Number.isFinite(inference) ? Math.round(inference * 100) / 100 : 0;
+    liveStats.particleCount = particleField.getParticleCount();
     renderer.update(delta);
+    particleBudget.update(delta);
     requestAnimationFrame(loop);
   }
 

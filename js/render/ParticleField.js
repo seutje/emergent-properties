@@ -58,55 +58,7 @@ export class ParticleField extends BaseModule {
     super.init();
 
     const layout = generateParticleAttributes(this.options);
-    this.count = layout.count;
-    this.state = {
-      positions: layout.positions,
-      idHash: layout.idHash,
-      phase: layout.phase,
-      distOrigin: layout.distOrigin,
-      grid: layout.grid,
-      seed: layout.seed,
-    };
-
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(layout.positions, 3));
-    this.geometry.setAttribute('aBaseColor', new THREE.BufferAttribute(layout.baseColor, 3));
-    this.geometry.setAttribute('aBaseSize', new THREE.BufferAttribute(layout.baseSize, 1));
-    this.geometry.setAttribute('aPhase', new THREE.BufferAttribute(layout.phase, 1));
-    this.geometry.setAttribute('aIdHash', new THREE.BufferAttribute(layout.idHash, 1));
-    this.geometry.setAttribute('aFlickerRate', this._createDynamicAttribute(layout.flickerRate, 1));
-    this.geometry.setAttribute('aFlickerDepth', this._createDynamicAttribute(layout.flickerDepth, 1));
-
-    const deltaPos = new Float32Array(layout.count * 3);
-    const colorDelta = new Float32Array(layout.count * 3);
-    const sizeDelta = new Float32Array(layout.count);
-
-    this.geometry.setAttribute('aDeltaPos', this._createDynamicAttribute(deltaPos, 3));
-    this.geometry.setAttribute('aColorDelta', this._createDynamicAttribute(colorDelta, 3));
-    this.geometry.setAttribute('aSizeDelta', this._createDynamicAttribute(sizeDelta, 1));
-    this.geometry.computeBoundingSphere();
-
-    this.uniforms = createParticleUniforms();
-    this.uniforms.uColorMix.value = this.options.colorMix;
-    this.uniforms.uAlphaScale.value = this.options.alphaScale;
-    this.uniforms.uPointScale.value = this.options.pointScale;
-
-    this.material = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: particleVertexShader,
-      fragmentShader: particleFragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
-
-    this.points = new THREE.Points(this.geometry, this.material);
-    this.points.frustumCulled = false;
-    this.scene.add(this.points);
-
-    this.attributeHandles = this._buildAttributeHandles();
-    this.defaults.flickerRate = new Float32Array(this.attributeHandles.flickerRate.array);
-    this.defaults.flickerDepth = new Float32Array(this.attributeHandles.flickerDepth.array);
+    this._applyLayout(layout, { preserveDynamics: false });
     this.elapsed = 0;
     this._applyTrackTextLayout({ skipDynamicsReset: true });
     return this;
@@ -197,6 +149,29 @@ export class ParticleField extends BaseModule {
     this._trackLabel = clean;
     this._applyTrackTextLayout();
     return this;
+  }
+
+  setParticleCount(value = this.options.count) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      return this.count;
+    }
+    const nextCount = Math.max(1, Math.floor(parsed));
+    if (nextCount === this.count) {
+      return this.count;
+    }
+    this.options.count = nextCount;
+    if (!this.scene || !this.points) {
+      this.count = nextCount;
+      return this.count;
+    }
+
+    const layout = generateParticleAttributes(this.options);
+    this._applyLayout(layout, { preserveDynamics: false });
+    this._applyTrackTextLayout({ skipDynamicsReset: true });
+    this._syncPointScale();
+    this.log?.(`Particle count updated to ${this.count}`);
+    return this.count;
   }
 
   getParticleCount() {
@@ -310,6 +285,84 @@ export class ParticleField extends BaseModule {
     this.uniforms.uPointScale.value = ratio * this.options.pointScale;
   }
 
+  _applyLayout(layout, { preserveDynamics = true } = {}) {
+    if (!layout) {
+      return;
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(layout.positions, 3));
+    geometry.setAttribute('aBaseColor', new THREE.BufferAttribute(layout.baseColor, 3));
+    geometry.setAttribute('aBaseSize', new THREE.BufferAttribute(layout.baseSize, 1));
+    geometry.setAttribute('aPhase', new THREE.BufferAttribute(layout.phase, 1));
+    geometry.setAttribute('aIdHash', new THREE.BufferAttribute(layout.idHash, 1));
+    geometry.setAttribute('aFlickerRate', this._createDynamicAttribute(layout.flickerRate, 1));
+    geometry.setAttribute('aFlickerDepth', this._createDynamicAttribute(layout.flickerDepth, 1));
+
+    const deltaPos = new Float32Array(layout.count * 3);
+    const colorDelta = new Float32Array(layout.count * 3);
+    const sizeDelta = new Float32Array(layout.count);
+
+    geometry.setAttribute('aDeltaPos', this._createDynamicAttribute(deltaPos, 3));
+    geometry.setAttribute('aColorDelta', this._createDynamicAttribute(colorDelta, 3));
+    geometry.setAttribute('aSizeDelta', this._createDynamicAttribute(sizeDelta, 1));
+    geometry.computeBoundingSphere();
+
+    if (!this.uniforms) {
+      this.uniforms = createParticleUniforms();
+    }
+    this.uniforms.uColorMix.value = this.options.colorMix;
+    this.uniforms.uAlphaScale.value = this.options.alphaScale;
+    this.uniforms.uPointScale.value = this.options.pointScale;
+
+    if (!this.material) {
+      this.material = new THREE.ShaderMaterial({
+        uniforms: this.uniforms,
+        vertexShader: particleVertexShader,
+        fragmentShader: particleFragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+    } else {
+      this.material.uniforms = this.uniforms;
+    }
+
+    const previousGeometry = this.geometry;
+    this.geometry = geometry;
+
+    if (this.points) {
+      this.points.geometry = geometry;
+    } else {
+      this.points = new THREE.Points(geometry, this.material);
+      this.points.frustumCulled = false;
+      this.scene.add(this.points);
+    }
+
+    if (previousGeometry && previousGeometry !== geometry) {
+      previousGeometry.dispose?.();
+    }
+
+    this.count = layout.count;
+    this.options.count = layout.count;
+    this.state = {
+      positions: layout.positions,
+      idHash: layout.idHash,
+      phase: layout.phase,
+      distOrigin: layout.distOrigin,
+      grid: layout.grid,
+      seed: layout.seed,
+    };
+
+    this.attributeHandles = this._buildAttributeHandles();
+    if (!preserveDynamics || !this.defaults.flickerRate) {
+      this.defaults.flickerRate = new Float32Array(this.attributeHandles.flickerRate?.array || 0);
+    }
+    if (!preserveDynamics || !this.defaults.flickerDepth) {
+      this.defaults.flickerDepth = new Float32Array(this.attributeHandles.flickerDepth?.array || 0);
+    }
+  }
+
   _applyLayoutToGeometry(layout) {
     if (!this.geometry) {
       return false;
@@ -327,6 +380,7 @@ export class ParticleField extends BaseModule {
       return false;
     }
     this.count = layout.count;
+    this.options.count = layout.count;
     this.state = {
       positions: layout.positions,
       idHash: layout.idHash,

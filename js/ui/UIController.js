@@ -320,6 +320,14 @@ export class UIController extends BaseModule {
       const controller = liveFolder.add(this.stats, 'inferenceMs').name('Inference (ms)').listen();
       controller.disable?.();
     }
+    if (Object.prototype.hasOwnProperty.call(this.stats, 'particleCount')) {
+      const controller = liveFolder.add(this.stats, 'particleCount').name('Particles').listen();
+      controller.disable?.();
+    }
+    if (Object.prototype.hasOwnProperty.call(this.stats, 'targetFps')) {
+      const controller = liveFolder.add(this.stats, 'targetFps').name('Target FPS').listen();
+      controller.disable?.();
+    }
 
     folder.open();
     liveFolder.open();

@@ -80,7 +80,7 @@ This plan assumes a human collaborator and one or more AI coding agents working 
 - [ ] [Human] Run through cross-browser smoke tests (Chrome, Firefox, Safari if possible) and log quirks.
 - [x] [AI] Add adaptive reactivity envelope plus GUI controls to amplify particle response to audio dynamics.
 - [x] [AI] Harden the MLP training loop with temporal/input smoothness regularizers so inference outputs stay stable under jittery audio.
-- [ ] [AI] Optimize bottlenecks discovered (particle budget, shader tweaks, throttled inference) and fix logged issues.
+- [x] [AI] Optimize bottlenecks discovered (particle budget, shader tweaks, throttled inference) and fix logged issues.
 - [ ] [Human] Approve final visual storytelling and audio-reactive feel.
 - [ ] [AI] Prepare release checklist (README updates, asset credits, deploy instructions).
 - [x] [AI] Insert a post-MLP response controller so renderer globals get slew-limited, hysteretic smoothing tied to audio energy.
