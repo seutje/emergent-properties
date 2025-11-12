@@ -174,3 +174,8 @@
 - Extended the training defaults with explicit temporal smoothness, slew-rate, Jacobian, and noise-consistency knobs so UI/worker settings can clamp overreactions without manual tweaks.
 - Rebuilt `MLPTrainingWorker`’s loop around a custom `optimizer.minimize` pass that batches data, injects Gaussian perturbations, applies TV/L2 penalties, and enforces a curriculum-weighted slew limiter plus weight decay before serializing the best snapshot.
 - Introduced `MLPTrainingRegularizers` (plus Jest coverage) to keep the curriculum math + config sanitizers deterministic, and ran `npm test -- MLPTrainingRegularizers` to ensure the helpers stay green.
+
+## 2025-11-11
+- Rebuilt the audio transport markup into stacked rows (primary actions, slider band, meta row) and restyled the buttons, dropdown, repeat toggle, and status tile so they match the rectangular neon aesthetic from the reference screenshot.
+- Overhauled the CSS with shared gradients/border variables, a center-aligned panel, and a horizontal slider track with a square thumb so the transport now mirrors the provided UI while staying responsive.
+- Visual-only change, so no Jest suites were run for this pass.

@@ -383,6 +383,12 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   wrapper.className = 'audio-transport';
   wrapper.setAttribute('aria-label', 'Audio transport controls');
   const onNextModel = typeof options.onNextModel === 'function' ? options.onNextModel : null;
+  const primaryRow = document.createElement('div');
+  primaryRow.className = 'audio-transport__row audio-transport__row--primary';
+  const sliderRow = document.createElement('div');
+  sliderRow.className = 'audio-transport__slider-row';
+  const metaRow = document.createElement('div');
+  metaRow.className = 'audio-transport__row audio-transport__row--meta';
 
   const playButton = document.createElement('button');
   playButton.type = 'button';
@@ -403,6 +409,12 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
   const trackSelect = document.createElement('select');
   trackSelect.className = 'audio-select';
   trackSelect.setAttribute('aria-label', 'Track selector');
+  const trackSelectWrapper = document.createElement('div');
+  trackSelectWrapper.className = 'audio-select-wrapper';
+  const trackSelectArrow = document.createElement('span');
+  trackSelectArrow.className = 'audio-select__arrow';
+  trackSelectArrow.setAttribute('aria-hidden', 'true');
+  trackSelectWrapper.append(trackSelect, trackSelectArrow);
 
   const albumGroup = document.createElement('optgroup');
   albumGroup.label = 'Album tracks';
@@ -637,17 +649,10 @@ function createTransportControls(manager, defaultVolumePercent = DEFAULT_VOLUME_
     updateNextTrackButtonState();
   });
 
-  wrapper.append(
-    playButton,
-    stopButton,
-    nextTrackButton,
-    trackSelect,
-    uploadButton,
-    volumeWrapper,
-    status,
-    repeatLabel,
-    nextModelButton,
-  );
+  primaryRow.append(playButton, stopButton, nextTrackButton, trackSelectWrapper);
+  sliderRow.append(volumeWrapper);
+  metaRow.append(status, repeatLabel, uploadButton, nextModelButton);
+  wrapper.append(primaryRow, sliderRow, metaRow);
   return wrapper;
 }
 
