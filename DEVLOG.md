@@ -199,3 +199,7 @@
 - Added an inference-aware lookahead scheduler to `MLPOrchestrator` that measures prediction latency, applies an EMA/bias clamp, and fires the next inference early so visuals stay aligned with the audio on slower machines.
 - Exposed the calculated lookahead in the orchestrator stats/UI plumbing and covered the new scheduler helpers with Jest tests (including the early-trigger path).
 - Ran `npm test` to cover the updated orchestrator suite.
+
+## 2025-11-13
+- Reworked the synthetic dataset mixer so each requested correlation blends the desired signal with an uncorrelated component, letting the training loop match the exact strength (and dial it back when necessary) instead of always maximizing.
+- Updated the training utility tests to assert that generated datasets and achievement calculations now land near the requested strengths, and ran `npm test` to cover the changes.

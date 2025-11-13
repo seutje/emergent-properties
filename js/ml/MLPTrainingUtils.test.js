@@ -55,7 +55,7 @@ describe('MLPTrainingUtils', () => {
       targetSeries.push(dataset.targets[i * outputSize + targetIndex]);
     }
     const corr = computePearsonCorrelation(featureSeries, targetSeries);
-    expect(Math.abs(corr)).toBeGreaterThan(0.6);
+    expect(Math.abs(corr)).toBeCloseTo(sanitized.strength, 1);
 
     const achieved = evaluateCorrelationAchievement({
       featureBuffer: dataset.featureBuffer,
@@ -66,7 +66,7 @@ describe('MLPTrainingUtils', () => {
       featureKeys: FEATURE_KEYS,
       correlations: dataset.correlations,
     });
-    expect(achieved[0].achieved).toBeGreaterThan(0.6);
+    expect(Math.abs(achieved[0].achieved)).toBeCloseTo(sanitized.strength, 1);
   });
 
   it('supports positional particle features in correlations', () => {
@@ -107,7 +107,7 @@ describe('MLPTrainingUtils', () => {
       targets.push(dataset.targets[i * outputSize + sanitized.targetIndex]);
     }
     const corr = computePearsonCorrelation(series, targets);
-    expect(Math.abs(corr)).toBeGreaterThan(0.5);
+    expect(Math.abs(corr)).toBeCloseTo(correlation.strength, 1);
     const achieved = evaluateCorrelationAchievement({
       featureBuffer: dataset.featureBuffer,
       baseFeatureBuffer: dataset.baseFeatureBuffer,
@@ -121,6 +121,6 @@ describe('MLPTrainingUtils', () => {
       baseStats: dataset.baseStats,
     });
     expect(achieved[0].featureKey).toBe(positionalFeature.id);
-    expect(Math.abs(achieved[0].achieved)).toBeGreaterThan(0.5);
+    expect(Math.abs(achieved[0].achieved)).toBeCloseTo(correlation.strength, 1);
   });
 });

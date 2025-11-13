@@ -185,7 +185,14 @@ export function generateSyntheticDataset({
         normalized = (featureValue - 0.5) * 2;
       }
       const signed = corr.polarity === 'inverse' ? -normalized : normalized;
-      const contribution = signed * corr.strength;
+      const desiredStrength = clamp01(corr.strength ?? 0);
+      const correlatedWeight = desiredStrength;
+      const uncorrelatedWeight = desiredStrength >= 1
+        ? 0
+        : Math.sqrt(Math.max(0, 1 - desiredStrength * desiredStrength));
+      const randomSample = rng() * 2 - 1;
+      const mixed = signed * correlatedWeight + randomSample * uncorrelatedWeight;
+      const contribution = clamp(mixed, -1, 1);
       const outputIndex = corr.targetIndex;
       const current = targets[sample * outputSize + outputIndex];
       const value = clamp(current + contribution + (rng() - 0.5) * noise, -1, 1);
