@@ -203,3 +203,8 @@
 ## 2025-11-13
 - Reworked the synthetic dataset mixer so each requested correlation blends the desired signal with an uncorrelated component, letting the training loop match the exact strength (and dial it back when necessary) instead of always maximizing.
 - Updated the training utility tests to assert that generated datasets and achievement calculations now land near the requested strengths, and ran `npm test` to cover the changes.
+
+## 2025-11-13
+- Synced every model snapshot under `assets/models/` so the `metadata.label` now matches the filename for easier identification a
+nd tooling alignment.
+- Ran `npm test` to ensure the dataset label updates don't impact the code.
