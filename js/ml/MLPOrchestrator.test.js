@@ -237,4 +237,39 @@ describe('MLPOrchestrator', () => {
     expect(renderer.setCameraZoom).toHaveBeenCalled();
     expect(renderer.zoom).not.toBe(7);
   });
+
+  it('triggers inference early when lookahead predicts longer latency', () => {
+    const orchestrator = new MLPOrchestrator({ model: {}, particleField: {}, featureExtractor: null });
+    orchestrator.initialized = true;
+    orchestrator.options.enabled = true;
+    orchestrator.interval = 0.05; // 20 Hz
+    orchestrator._lookaheadSeconds = 0.03; // 30 ms lookahead
+    const spy = jest.spyOn(orchestrator, '_computeInference').mockResolvedValue(undefined);
+
+    orchestrator.update(0.02); // accumulator equals interval - lookahead
+
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('adapts the lookahead window based on measured inference latency', () => {
+    const orchestrator = new MLPOrchestrator({ model: {}, particleField: {}, featureExtractor: null });
+    orchestrator.interval = 0.08; // 80 ms target cadence
+    orchestrator.options.lookahead = {
+      enabled: true,
+      alpha: 0.5,
+      minMs: 5,
+      maxMs: 120,
+      biasMs: 5,
+      headroom: 1,
+    };
+
+    orchestrator._updateLookahead(60);
+    expect(orchestrator._lookaheadSeconds).toBeCloseTo(0.065, 6);
+
+    orchestrator._updateLookahead(20);
+    expect(orchestrator._lookaheadSeconds).toBeCloseTo(0.045, 6);
+
+    const stats = orchestrator.getStats();
+    expect(stats.lookaheadMs).toBeGreaterThan(40);
+  });
 });

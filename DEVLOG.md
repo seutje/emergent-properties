@@ -194,3 +194,8 @@
 - Tightened the audio transport styling by lowering typography scale, trimming padding/gaps, and flattening the cards/buttons so the bar reads as a compact strip.
 - Removed the rounded corners from the panel, controls, slider track, and thumb while keeping the gradient/glass treatments for continuity with the rest of the UI.
 - Visual-only adjustments; Jest suites were not rerun for this pass.
+
+## 2025-11-13
+- Added an inference-aware lookahead scheduler to `MLPOrchestrator` that measures prediction latency, applies an EMA/bias clamp, and fires the next inference early so visuals stay aligned with the audio on slower machines.
+- Exposed the calculated lookahead in the orchestrator stats/UI plumbing and covered the new scheduler helpers with Jest tests (including the early-trigger path).
+- Ran `npm test` to cover the updated orchestrator suite.

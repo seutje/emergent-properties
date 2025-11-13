@@ -68,6 +68,17 @@ export const DEFAULT_REACTIVITY = {
   flickerBoost: 1.65,
 };
 
+const DEFAULT_LOOKAHEAD = {
+  enabled: true,
+  alpha: 0.25,
+  minMs: 6,
+  maxMs: 220,
+  biasMs: 4,
+  headroom: 0.9,
+};
+
+const LOOKAHEAD_EPSILON = 1e-4;
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
 const mapMinusOneToOne = (value, min, max) => {
@@ -155,6 +166,7 @@ export class MLPOrchestrator extends BaseModule {
       blend: 1,
       outputs: { ...DEFAULT_OUTPUTS, ...(options.outputs || {}) },
       reactivity: { ...DEFAULT_REACTIVITY, ...(options.reactivity || {}) },
+      lookahead: { ...DEFAULT_LOOKAHEAD, ...(options.lookahead || {}) },
       ...options,
     };
 
@@ -172,6 +184,8 @@ export class MLPOrchestrator extends BaseModule {
     this.featureVector = new Float32Array(this.audioDims);
     this.attributeHandles = null;
     this.lastInferenceMs = 0;
+    this._lookaheadSeconds = 0;
+    this._latencyEmaMs = 0;
     this.baseFlickerRate = null;
     this.baseFlickerDepth = null;
     this.lastFeatures = {};
@@ -210,7 +224,8 @@ export class MLPOrchestrator extends BaseModule {
       return;
     }
     this.accumulator += Math.max(0, delta);
-    if (this.accumulator < this.interval || this._pending) {
+    const threshold = this._getLookaheadThreshold();
+    if (this.accumulator + LOOKAHEAD_EPSILON < threshold || this._pending) {
       return;
     }
     this.accumulator = 0;
@@ -278,6 +293,7 @@ export class MLPOrchestrator extends BaseModule {
       lastInferenceMs: this.lastInferenceMs,
       count: this.count,
       pending: Boolean(this._pending),
+      lookaheadMs: Math.round(this._lookaheadSeconds * 1000 * 100) / 100,
     };
   }
 
@@ -354,6 +370,7 @@ export class MLPOrchestrator extends BaseModule {
     const outputTensor = this.model.predict(inputTensor);
     const data = await outputTensor.data();
     this.lastInferenceMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - start;
+    this._updateLookahead(this.lastInferenceMs);
     const modifiers = this._computeReactivityModifiers();
     this._applyOutputs(data, modifiers);
     featureTensor.dispose();
@@ -592,5 +609,40 @@ export class MLPOrchestrator extends BaseModule {
         initialValue: Number.isFinite(initial) ? initial : undefined,
       });
     });
+  }
+
+  _getLookaheadThreshold() {
+    if (!this.options.lookahead?.enabled) {
+      return this.interval;
+    }
+    const lookahead = clamp(this._lookaheadSeconds || 0, 0, this.interval);
+    const headroom = clamp(this.options.lookahead.headroom ?? DEFAULT_LOOKAHEAD.headroom, 0.1, 1);
+    const maxLookahead = this.interval * headroom;
+    const applied = Math.min(lookahead, maxLookahead);
+    const threshold = this.interval - applied;
+    return Math.max(0, threshold);
+  }
+
+  _updateLookahead(latencyMs = 0) {
+    const opts = this.options.lookahead || DEFAULT_LOOKAHEAD;
+    if (!opts.enabled) {
+      this._lookaheadSeconds = 0;
+      this._latencyEmaMs = 0;
+      return;
+    }
+    const alpha = clamp(opts.alpha ?? DEFAULT_LOOKAHEAD.alpha, 0.01, 1);
+    const minMs = Math.max(0, opts.minMs ?? DEFAULT_LOOKAHEAD.minMs);
+    const maxMs = Math.max(minMs, opts.maxMs ?? DEFAULT_LOOKAHEAD.maxMs);
+    const biasMs = Math.max(0, opts.biasMs ?? DEFAULT_LOOKAHEAD.biasMs);
+    const measured = Math.max(0, Number(latencyMs) || 0) + biasMs;
+    const clampedLatency = clamp(measured, minMs, maxMs);
+    if (!Number.isFinite(this._latencyEmaMs) || this._latencyEmaMs === 0) {
+      this._latencyEmaMs = clampedLatency;
+    } else {
+      this._latencyEmaMs = this._latencyEmaMs + alpha * (clampedLatency - this._latencyEmaMs);
+    }
+    const headroom = clamp(opts.headroom ?? DEFAULT_LOOKAHEAD.headroom, 0.1, 1);
+    const maxLookaheadSeconds = this.interval * headroom;
+    this._lookaheadSeconds = Math.min(this._latencyEmaMs / 1000, maxLookaheadSeconds);
   }
 }
